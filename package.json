@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "debug:server": "python3 -m http.server 4173",
+    "test": "npm run test:transcription",
     "test:transcription": "playwright test tests/transcription-harness.spec.js"
   },
   "devDependencies": {

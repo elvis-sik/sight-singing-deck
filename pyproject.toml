@@ -7,7 +7,7 @@ dependencies = []
 
 [project.optional-dependencies]
 deck = ["genanki>=0.13.0"]
-dev = ["ruff>=0.6.0"]
+dev = ["mypy>=1.13.0", "ruff>=0.6.0"]
 
 [build-system]
 requires = ["setuptools>=61"]
@@ -27,3 +27,9 @@ line-length = 100
 
 [tool.ruff.lint.per-file-ignores]
 "scripts/build_deck.py" = ["E402"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+follow_imports = "skip"
+check_untyped_defs = false

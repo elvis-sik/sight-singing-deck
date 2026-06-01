@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import shutil
 import sys
 import tempfile
@@ -16,11 +15,6 @@ ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
-
-from sight_singing.audio_assets import CADENCE_FILENAME, build_all_audio, melody_clip_filename
-from sight_singing.card_data import melody_to_card_fields
-from sight_singing.melodies import MELODIES
-
 
 DECK_ID = 2_948_817_301
 FIELD_NAMES = [
@@ -371,6 +365,10 @@ def make_model(model_id: int, name: str, front: str) -> genanki.Model:
 
 
 def build(out_path: Path) -> None:
+    from sight_singing.audio_assets import CADENCE_FILENAME, build_all_audio, melody_clip_filename
+    from sight_singing.card_data import melody_to_card_fields
+    from sight_singing.melodies import MELODIES
+
     assets_dir = ROOT / "assets"
     build_all_audio(assets_dir)
     renderer_debug_name = "_renderer_intdebug_v1.js"

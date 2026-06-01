@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 TOTAL_CANONICAL_MELODIES = 576
 FULL_MIRROR_VARIANTS = 4
 TOTAL_RENDERED_CLIPS_IF_FULLY_MIRRORED = (
@@ -9,7 +11,7 @@ TOTAL_RENDERED_CLIPS_IF_FULLY_MIRRORED = (
 )
 
 
-FIXED_AUDIO_CURRICULUM = {
+FIXED_AUDIO_CURRICULUM: dict[str, Any] = {
     "version": 1,
     "canonical_unit": (
         "One 4-note melody encoded as scale degrees before realization into a specific "
