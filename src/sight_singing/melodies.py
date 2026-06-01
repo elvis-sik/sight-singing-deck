@@ -11,9 +11,10 @@ MELODIES: list[dict[str, object]] = [
     },
     {
         "id": "mvp_02",
-        "notes": ["C4", "D4", "D4", "C4"],
-        "degrees": [1, 2, 2, 1],
-        "description": "Up-plateau-back",
+        "notes": ["C4", "D4", "C4"],
+        "durations": ["q", "q", "h"],
+        "degrees": [1, 2, 1],
+        "description": "Half-note return",
     },
     {
         "id": "mvp_03",
@@ -23,9 +24,10 @@ MELODIES: list[dict[str, object]] = [
     },
     {
         "id": "mvp_04",
-        "notes": ["C4", "C4", "D4", "E4"],
-        "degrees": [1, 1, 2, 3],
-        "description": "Delayed ascent",
+        "notes": ["C4", "D4", "E4", "D4", "C4", "C4"],
+        "durations": ["8", "8", "q", "q", "8", "8"],
+        "degrees": [1, 2, 3, 2, 1, 1],
+        "description": "Eighth-note arch",
     },
     {
         "id": "mvp_05",
@@ -47,9 +49,10 @@ MELODIES: list[dict[str, object]] = [
     },
     {
         "id": "mvp_08",
-        "notes": ["E4", "F4", "G4", "G4"],
-        "degrees": [3, 4, 5, 5],
-        "description": "Ascending to 5",
+        "notes": ["E4", "G4", "E4"],
+        "durations": ["h", "q", "q"],
+        "degrees": [3, 5, 3],
+        "description": "Half-note leap return",
     },
     {
         "id": "mvp_09",
@@ -59,8 +62,9 @@ MELODIES: list[dict[str, object]] = [
     },
     {
         "id": "mvp_10",
-        "notes": ["G4", "A4", "G4", "G4"],
-        "degrees": [5, 6, 5, 5],
-        "description": "Upper neighbor around 5",
+        "notes": ["G4", "A4", "G4", "E4"],
+        "durations": ["8", "8", "h", "q"],
+        "degrees": [5, 6, 5, 3],
+        "description": "Quick upper neighbor to long 5",
     },
 ]

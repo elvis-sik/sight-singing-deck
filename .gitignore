@@ -6,3 +6,10 @@ dist/
 out/
 *.apkg
 .DS_Store
+node_modules/
+test-results/
+.render-assets/
+.render-tools/
+.swift-module-cache/
+assets/_*.mp3
+assets/_*.wav

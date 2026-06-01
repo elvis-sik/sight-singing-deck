@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Transcription Harness</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px 16px 40px;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        background: #f5f5f4;
+        color: #18181b;
+      }
+      .ss-wrap { max-width: 560px; margin: 0 auto; padding: 8px 4px; }
+      .ss-btn {
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        font-size: 14px;
+        padding: 8px 14px;
+        border-radius: 8px;
+        border: 1px solid rgba(0,0,0,0.15);
+        background: #f4f4f5;
+        color: #18181b;
+        cursor: pointer;
+      }
+      .ss-transcribe-editor {
+        position: relative;
+        max-width: 520px;
+        height: 176px;
+        margin: 16px auto 10px;
+        border: 1px solid rgba(0,0,0,0.08);
+        border-radius: 12px;
+        background: linear-gradient(180deg, #fff 0%, #fafaf9 100%);
+        overflow: hidden;
+      }
+      .ss-transcribe-staff-line,
+      .ss-transcribe-bar-line,
+      .ss-transcribe-slot-guide,
+      .ss-transcribe-ledger {
+        position: absolute;
+        background: rgba(39,39,42,0.72);
+      }
+      .ss-transcribe-staff-line { left: 36px; right: 18px; height: 1px; }
+      .ss-transcribe-bar-line { width: 2px; top: 28px; height: 64px; }
+      .ss-transcribe-slot-guide {
+        top: 24px;
+        bottom: 24px;
+        width: 1px;
+        background: rgba(113,113,122,0.16);
+      }
+      .ss-transcribe-slot-guide-beat {
+        background: rgba(113,113,122,0.35);
+      }
+      .ss-transcribe-slot-index {
+        position: absolute;
+        bottom: 8px;
+        transform: translateX(-50%);
+        font-size: 12px;
+        color: #71717a;
+      }
+      .ss-transcribe-gap {
+        position: absolute;
+        top: 102px;
+        height: 24px;
+        border-radius: 999px;
+        border: 1px dashed rgba(113,113,122,0.38);
+        background: rgba(244,244,245,0.92);
+      }
+      .ss-transcribe-gap-label {
+        position: absolute;
+        top: 106px;
+        transform: translateX(-50%);
+        font-size: 11px;
+        color: #78716c;
+      }
+      .ss-transcribe-hit {
+        position: absolute;
+        top: 18px;
+        bottom: 28px;
+        border: none;
+        background: rgba(34,197,94,0.07);
+        padding: 0;
+        margin: 0;
+        outline: none;
+        cursor: pointer;
+      }
+      .ss-transcribe-hit-valid {
+        background: rgba(34,197,94,0.07);
+      }
+      .ss-transcribe-hit-invalid {
+        background: rgba(161,161,170,0.14);
+        cursor: default;
+      }
+      .ss-transcribe-hit:active {
+        background: rgba(24,24,27,0.08);
+      }
+      .ss-transcribe-event-span {
+        position: absolute;
+        top: 122px;
+        height: 6px;
+        border-radius: 999px;
+        background: rgba(24,24,27,0.18);
+      }
+      .ss-transcribe-event-rest {
+        background: rgba(87,83,78,0.18);
+      }
+      .ss-transcribe-duration-tag {
+        position: absolute;
+        top: 132px;
+        transform: translateX(-50%);
+        font-size: 11px;
+        color: #78716c;
+      }
+      .ss-transcribe-note {
+        position: absolute;
+        width: 15px;
+        height: 11px;
+        margin-left: -8px;
+        margin-top: -6px;
+        border-radius: 50%;
+        background: #18181b;
+        transform: rotate(-18deg);
+      }
+      .ss-transcribe-note-h,
+      .ss-transcribe-note-w {
+        background: #fff;
+        border: 2px solid #18181b;
+        box-sizing: border-box;
+      }
+      .ss-transcribe-note-w::after {
+        display: none;
+      }
+      .ss-transcribe-note-8::before {
+        content: "";
+        position: absolute;
+        right: -2px;
+        top: -23px;
+        width: 9px;
+        height: 9px;
+        border-top: 2px solid #18181b;
+        border-right: 2px solid #18181b;
+        border-radius: 0 8px 0 0;
+        transform: rotate(18deg);
+      }
+      .ss-transcribe-note::after {
+        content: "";
+        position: absolute;
+        right: 1px;
+        top: -26px;
+        width: 2px;
+        height: 27px;
+        background: #18181b;
+        border-radius: 1px;
+        transform: rotate(18deg);
+        transform-origin: bottom right;
+      }
+      .ss-transcribe-rest {
+        position: absolute;
+        transform: translateX(-50%);
+      }
+      .ss-transcribe-rest-q,
+      .ss-transcribe-rest-8 {
+        top: 62px;
+        width: 22px;
+        height: 26px;
+        border-radius: 10px;
+        background: rgba(68,64,60,0.09);
+        border: 1px solid rgba(68,64,60,0.28);
+      }
+      .ss-transcribe-rest-q::before,
+      .ss-transcribe-rest-8::before {
+        content: "R";
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 700;
+        color: #44403c;
+      }
+      .ss-transcribe-rest-8::after {
+        content: "8";
+        position: absolute;
+        right: 3px;
+        top: 2px;
+        font-size: 9px;
+        color: #57534e;
+      }
+      .ss-transcribe-rest-h,
+      .ss-transcribe-rest-w {
+        width: 18px;
+        height: 8px;
+        background: #18181b;
+      }
+      .ss-transcribe-rest-h { top: 60px; }
+      .ss-transcribe-rest-w { top: 68px; }
+      .ss-transcribe-toolbar {
+        display: flex;
+        justify-content: center;
+        gap: 8px;
+        margin: 12px 0;
+        flex-wrap: wrap;
+      }
+      .ss-transcribe-toolbar-compact .ss-btn {
+        min-width: 74px;
+        padding: 8px 10px;
+      }
+      .ss-tool-active {
+        background: #18181b;
+        color: #fafafa;
+        border-color: #18181b;
+      }
+      .ss-transcribe-summary {
+        text-align: center;
+        font-size: 15px;
+        color: #44403c;
+        margin-top: 8px;
+      }
+      .ss-transcribe-summary strong { color: #18181b; }
+      .ss-transcribe-proto {
+        text-align: center;
+        color: #71717a;
+        font-size: 13px;
+        margin-top: 8px;
+      }
+      .debug-link {
+        text-align: center;
+        margin-top: 24px;
+        color: #57534e;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="ss-wrap">
+      <h1>Transcription Harness</h1>
+      <p class="debug-link">Standalone page that reuses the deck JS directly.</p>
+      <script>
+        window.sightSingingMelodyId = "debug_harness";
+      </script>
+      <div id="melody-data" style="display:none;">
+        {"version":2,"clef":"treble","key":"C","mode":"major","timeSig":"4/4","notes":["C4","D4","C4"],"durations":["q","q","h"],"bars":[{"events":[{"kind":"note","pitch":"C4","duration":"q"},{"kind":"note","pitch":"D4","duration":"q"},{"kind":"note","pitch":"C4","duration":"h"}]}],"degrees":[1,2,1]}
+      </div>
+      <div id="transcribe-editor" class="ss-transcribe-editor"></div>
+      <div class="ss-transcribe-toolbar">
+        <button type="button" id="transcribe-tool-note" data-transcribe-tool="note" class="ss-btn ss-tool-active">Notes</button>
+        <button type="button" id="transcribe-tool-rest" data-transcribe-tool="rest" class="ss-btn">Rests</button>
+        <button type="button" id="transcribe-tool-erase" data-transcribe-tool="erase" class="ss-btn">Erase</button>
+        <button type="button" id="transcribe-reset" class="ss-btn">Reset</button>
+      </div>
+      <div class="ss-transcribe-toolbar ss-transcribe-toolbar-compact">
+        <button type="button" id="transcribe-duration-8" data-transcribe-duration="8" class="ss-btn">Eighth</button>
+        <button type="button" id="transcribe-duration-q" data-transcribe-duration="q" class="ss-btn">Quarter</button>
+        <button type="button" id="transcribe-duration-h" data-transcribe-duration="h" class="ss-btn">Half</button>
+        <button type="button" id="transcribe-duration-w" data-transcribe-duration="w" class="ss-btn ss-tool-active">Whole</button>
+      </div>
+      <div id="transcribe-status" class="ss-transcribe-summary"></div>
+      <p class="ss-transcribe-proto">Prototype harness for browser testing.</p>
+    </div>
+
+    <script src="/assets/_renderer.js"></script>
+    <script src="/assets/_transcription.js"></script>
+  </body>
+  </html>
