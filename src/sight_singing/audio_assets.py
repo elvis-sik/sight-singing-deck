@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
 import tempfile
 import wave
@@ -11,9 +13,6 @@ from sight_singing.midi_writer import TICKS_PER_QUARTER, write_midi
 from sight_singing.melodies import MELODIES
 
 ROOT = Path(__file__).resolve().parents[2]
-FLUIDSYNTH_BIN = Path("/opt/homebrew/bin/fluidsynth")
-LAME_BIN = Path("/opt/homebrew/bin/lame")
-DEFAULT_SOUNDFONT = ROOT / ".render-assets" / "GeneralUser-GS.sf2"
 PCM_SAMPLE_RATE = 44_100
 MP3_BITRATE = 64_000
 PIANO_PROGRAM = 0
@@ -54,6 +53,32 @@ CADENCE_CHORDS = [
     ["C4", "E4", "G4"],
 ]
 CADENCE_FILENAME = "_cadence_C.mp3"
+
+
+def _tool_path(env_var: str, binary: str, fallback: Path) -> Path:
+    configured = os.environ.get(env_var)
+    if configured:
+        return Path(configured)
+    found = shutil.which(binary)
+    if found:
+        return Path(found)
+    return fallback
+
+
+def _soundfont_path() -> Path:
+    configured = os.environ.get("SOUNDFONT_PATH")
+    if configured:
+        return Path(configured)
+    candidates = [
+        ROOT / ".render-assets" / "GeneralUser-GS.sf2",
+        Path("/usr/share/sounds/sf2/FluidR3_GM.sf2"),
+        Path("/usr/share/sounds/sf2/TimGM6mb.sf2"),
+        Path("/usr/share/soundfonts/FluidR3_GM.sf2"),
+    ]
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return candidates[0]
 
 
 def melody_clip_filename(melody_id: str) -> str:
@@ -107,9 +132,10 @@ def _write_clip_midi(
 
 
 def _encode_mp3(src_pcm: Path, dest_mp3: Path) -> None:
+    lame_bin = _tool_path("LAME_BIN", "lame", Path("/opt/homebrew/bin/lame"))
     subprocess.run(
         [
-            str(LAME_BIN),
+            str(lame_bin),
             "--silent",
             "-m",
             "m",
@@ -123,9 +149,14 @@ def _encode_mp3(src_pcm: Path, dest_mp3: Path) -> None:
 
 
 def _render_wav_with_fluidsynth(midi_path: Path, wav_path: Path) -> None:
+    fluidsynth_bin = _tool_path(
+        "FLUIDSYNTH_BIN",
+        "fluidsynth",
+        Path("/opt/homebrew/bin/fluidsynth"),
+    )
     subprocess.run(
         [
-            str(FLUIDSYNTH_BIN),
+            str(fluidsynth_bin),
             "-ni",
             "-q",
             "-R",
@@ -140,7 +171,7 @@ def _render_wav_with_fluidsynth(midi_path: Path, wav_path: Path) -> None:
             "wav",
             "-r",
             str(PCM_SAMPLE_RATE),
-            str(DEFAULT_SOUNDFONT),
+            str(_soundfont_path()),
             str(midi_path),
         ],
         check=True,
@@ -263,12 +294,19 @@ def build_all_audio(assets_dir: Path) -> list[Path]:
     out: list[Path] = []
     assets_dir.mkdir(parents=True, exist_ok=True)
 
-    if not FLUIDSYNTH_BIN.is_file():
-        raise FileNotFoundError(f"Missing FluidSynth binary: {FLUIDSYNTH_BIN}")
-    if not LAME_BIN.is_file():
-        raise FileNotFoundError(f"Missing LAME binary: {LAME_BIN}")
-    if not DEFAULT_SOUNDFONT.is_file():
-        raise FileNotFoundError(f"Missing soundfont: {DEFAULT_SOUNDFONT}")
+    fluidsynth_bin = _tool_path(
+        "FLUIDSYNTH_BIN",
+        "fluidsynth",
+        Path("/opt/homebrew/bin/fluidsynth"),
+    )
+    lame_bin = _tool_path("LAME_BIN", "lame", Path("/opt/homebrew/bin/lame"))
+    soundfont = _soundfont_path()
+    if not fluidsynth_bin.is_file():
+        raise FileNotFoundError(f"Missing FluidSynth binary: {fluidsynth_bin}")
+    if not lame_bin.is_file():
+        raise FileNotFoundError(f"Missing LAME binary: {lame_bin}")
+    if not soundfont.is_file():
+        raise FileNotFoundError(f"Missing soundfont: {soundfont}")
 
     with tempfile.TemporaryDirectory(prefix="ss-piano-render-") as tmp:
         temp_dir = Path(tmp)
