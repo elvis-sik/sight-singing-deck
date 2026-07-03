@@ -9,11 +9,11 @@ import genanki
 # Stable IDs for this deck (change if you fork a separate published deck).
 DECK_ID = 2_948_817_001
 MODEL_ID = 2_948_817_015
-MODEL_NAME = "Sight Singing (MVP v15 engraved editor)"
+MODEL_NAME = "Sight Singing (MVP v16 engraved editor)"
 
 VEXFLOW_ASSET_NAME = "_vexflow_ss_v1.js"
 RENDERER_ASSET_NAME = "_renderer_ss_v3.js"
-TRANSCRIPTION_ASSET_NAME = "_transcription_ss_v3.js"
+TRANSCRIPTION_ASSET_NAME = "_transcription_ss_v4.js"
 
 _CSS_PATH = Path(__file__).resolve().parents[2] / "assets" / "card_styles.css"
 
@@ -186,16 +186,22 @@ window.sightSingingCadenceFile = "{{text:CadenceAudioFile}}";
 window.sightSingingFirstNoteFile = "{{text:FirstNoteAudioFile}}";
 window.sightSingingTonicFile = "{{text:TonicAudioFile}}";
 window.sightSingingMelodyFile = "{{text:MelodyAudioFile}}";
+</script>
+{{/MelodyAudioFile}}
+<script>
+/*
+  Audio clue configuration — edit these lists to taste.
+  Available keys: "cadence", "first", "tonic", "melody".
+  Front plays before you sing; Back plays after the answer is shown.
+  The buttons under the staff work regardless of this setting.
+*/
 window.sightSingingAutoplayFront = [
-  "cadence",
-  "first",
   "tonic",
 ];
 window.sightSingingAutoplayBack = [
   "melody",
 ];
 </script>
-{{/MelodyAudioFile}}
 <!--
 WARNING:
 The template below this point should not refer to rendered [sound:...] fields.
@@ -240,15 +246,22 @@ window.sightSingingCadenceFile = "{{text:CadenceAudioFile}}";
 window.sightSingingFirstNoteFile = "{{text:FirstNoteAudioFile}}";
 window.sightSingingTonicFile = "{{text:TonicAudioFile}}";
 window.sightSingingMelodyFile = "{{text:MelodyAudioFile}}";
+</script>
+{{/MelodyAudioFile}}
+<script>
+/*
+  Audio clue configuration — edit these lists to taste.
+  Available keys: "cadence", "first", "tonic", "melody".
+  The buttons under the editor work regardless of this setting.
+*/
 window.sightSingingAutoplayFront = [
-  "cadence",
+  "tonic",
   "melody",
 ];
 window.sightSingingAutoplayBack = [
   "melody",
 ];
 </script>
-{{/MelodyAudioFile}}
 <!--
 WARNING:
 The template below this point should not refer to rendered [sound:...] fields.

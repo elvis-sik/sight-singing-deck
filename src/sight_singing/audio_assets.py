@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import shutil
 import subprocess
 import tempfile
 import wave
 from pathlib import Path
+from typing import Any
 
 from sight_singing.midi_writer import TICKS_PER_QUARTER, write_midi
 from sight_singing.melodies import MELODIES
@@ -52,7 +55,44 @@ CADENCE_CHORDS = [
     ["G4", "B4", "D5"],
     ["C4", "E4", "G4"],
 ]
-CADENCE_FILENAME = "_cadence_C.mp3"
+
+# Anki's .apkg importer never overwrites an existing media file that has the
+# same name, so clip filenames must change whenever their audible content
+# does. Every clip name therefore embeds a hash of its musical content and
+# the render parameters. Bump AUDIO_RENDER_VERSION for changes the hash
+# inputs cannot see (e.g. a different soundfont policy).
+AUDIO_RENDER_VERSION = 2
+
+
+def _clip_hash(payload: Any) -> str:
+    blob = json.dumps(
+        {
+            "version": AUDIO_RENDER_VERSION,
+            "payload": payload,
+            "render": {
+                "sample_rate": PCM_SAMPLE_RATE,
+                "bitrate": MP3_BITRATE,
+                "program": PIANO_PROGRAM,
+                "gain": FLUID_GAIN,
+                "trim": [TRIM_SILENCE_THRESHOLD, TRIM_PAD_SEC],
+            },
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha1(blob.encode("utf-8")).hexdigest()[:10]
+
+
+CADENCE_FILENAME = "_cadence_C_{}.mp3".format(
+    _clip_hash(
+        {
+            "kind": "cadence",
+            "chords": CADENCE_CHORDS,
+            "step": CADENCE_STEP,
+            "ratio": CADENCE_NOTE_RATIO,
+        }
+    )
+)
 
 
 def _tool_path(env_var: str, binary: str, fallback: Path) -> Path:
@@ -81,13 +121,50 @@ def _soundfont_path() -> Path:
     return candidates[0]
 
 
+def _melody_by_id(melody_id: str) -> dict[str, Any]:
+    for melody in MELODIES:
+        if str(melody["id"]) == melody_id:
+            return melody
+    raise KeyError(f"Unknown melody id: {melody_id}")
+
+
+def melody_clip_notes_durations(melody: dict[str, Any]) -> tuple[list[str], list[str]]:
+    """Normalized (notes, durations) exactly as the renderer receives them."""
+    notes_raw = melody["notes"]
+    if not isinstance(notes_raw, list):
+        raise TypeError(f"melody {melody['id']}: notes must be a list")
+    durations_raw = melody.get("durations", ["q"] * len(notes_raw))
+    if not isinstance(durations_raw, list):
+        raise TypeError(f"melody {melody['id']}: durations must be a list")
+    notes = [str(item) for item in notes_raw]
+    durations = [str(item) for item in durations_raw]
+    return notes, durations
+
+
 def melody_clip_filename(melody_id: str) -> str:
-    return f"_m_{melody_id}.mp3"
+    notes, durations = melody_clip_notes_durations(_melody_by_id(melody_id))
+    digest = _clip_hash(
+        {
+            "kind": "melody",
+            "notes": notes,
+            "durations": durations,
+            "quarter_sec": QUARTER_SEC,
+            "ratio": MELODY_NOTE_RATIO,
+        }
+    )
+    return f"_m_{melody_id}_{digest}.mp3"
 
 
 def note_clip_filename(note_name: str) -> str:
     safe = note_name.replace("#", "s")
-    return f"_n_{safe}.mp3"
+    digest = _clip_hash(
+        {
+            "kind": "note",
+            "pitch": str(note_name),
+            "duration_sec": SINGLE_NOTE_DUR,
+        }
+    )
+    return f"_n_{safe}_{digest}.mp3"
 
 
 def _seconds_to_ticks(seconds: float, quarter_seconds: float) -> int:
@@ -323,17 +400,12 @@ def build_all_audio(assets_dir: Path) -> list[Path]:
 
         for melody in MELODIES:
             melody_id = str(melody["id"])
-            notes = melody["notes"]
-            if not isinstance(notes, list):
-                raise TypeError(f"melody {melody_id}: notes must be a list")
-            durations = melody.get("durations", ["q"] * len(notes))
-            if not isinstance(durations, list):
-                raise TypeError(f"melody {melody_id}: durations must be a list")
+            notes, durations = melody_clip_notes_durations(melody)
             midi_path, wav_path = _build_melody_clip(
                 temp_dir,
                 melody_id,
-                [str(item) for item in notes],
-                [str(item) for item in durations],
+                notes,
+                durations,
             )
             render_targets.append((midi_path, wav_path, assets_dir / melody_clip_filename(melody_id)))
 

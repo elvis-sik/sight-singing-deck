@@ -787,6 +787,7 @@
   function computeGhost(x, y) {
     if (!geo) return null;
     if (x < geo.leftX - 8 || x > geo.rightX + 8) return null;
+    if (y < -14 || y > geo.height + 14) return null;
 
     if (state.mode === "erase") {
       var unit = Math.floor(xToUnit(x));
@@ -1083,18 +1084,21 @@
     overlay.addEventListener("pointerup", function (event) {
       if (!active) return;
       active = false;
-      update(event);
-      var pos = pointerPos(event, overlay);
-      var inside =
-        pos.x >= -6 &&
-        pos.x <= (geo ? geo.width + 6 : 9999) &&
-        pos.y >= -6 &&
-        pos.y <= (geo ? geo.height + 6 : 9999);
-      if (inside && hover && hover.ghost) {
-        commitGhost(hover.ghost);
+      /*
+       * Commit exactly what the ghost preview showed for the last
+       * move/down event. Release coordinates are deliberately ignored:
+       * some webviews (Anki's Qt WebEngine) report pointerup positions
+       * in a different coordinate space, which used to snap every
+       * placement to the bottom pitch. Dragging off the staff hides the
+       * ghost (computeGhost returns null), so releasing there cancels.
+       */
+      var ghost = hover && hover.ghost;
+      if (ghost) {
+        commitGhost(ghost);
       }
       hover = null;
       renderOverlay();
+      event.preventDefault();
     });
     overlay.addEventListener("pointercancel", function () {
       active = false;

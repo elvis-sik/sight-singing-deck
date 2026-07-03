@@ -59,6 +59,21 @@ Run the Playwright transcription check:
 npm run test:transcription
 ```
 
+## Audio Clues
+
+Both card templates autoplay a configurable sequence of clues. The defaults
+are `["tonic"]` on the Sing front (cadence and first-note stay available as
+buttons) and `["tonic", "melody"]` on the Transcribe front. To change them,
+edit the clearly-marked "Audio clue configuration" script block at the top of
+the card templates (available keys: `cadence`, `first`, `tonic`, `melody`).
+
+Audio clip filenames embed a content hash (see `AUDIO_RENDER_VERSION` in
+[`src/sight_singing/audio_assets.py`](src/sight_singing/audio_assets.py)):
+Anki's importer never overwrites an existing media file with the same name,
+so any change to a melody or to render parameters must produce a new
+filename. After re-importing an updated deck, run Tools → Check Media in
+Anki to delete the orphaned older clips.
+
 ## Notes
 
 - `node_modules/`, `test-results/`, `out/`, rendered audio, and local render caches are intentionally ignored.
