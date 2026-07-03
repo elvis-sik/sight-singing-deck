@@ -265,6 +265,12 @@
 
 .ss-editor-readonly .ss-editor-overlay { display: none; }
 
+/* Notes the hovered action (replace/erase) would remove. */
+.ss-editor-score .ss-doomed {
+  opacity: 0.25;
+  transition: opacity 0.12s;
+}
+
 .ss-ghost-label {
   position: absolute;
   transform: translate(-50%, -100%);

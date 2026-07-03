@@ -671,14 +671,21 @@
 
     /* Beam adjacent placed eighth notes inside the same beat. */
     var beams = [];
+    var beamRecords = [];
     var group = [];
+    var groupIdx = [];
     function flushBeam() {
       if (group.length >= 2) {
         try {
           beams.push(new VF.Beam(group));
+          beamRecords.push({
+            beam: beams[beams.length - 1],
+            eventIndexes: groupIdx.slice(),
+          });
         } catch (e) {}
       }
       group = [];
+      groupIdx = [];
     }
     for (var s = 0; s < slots.length; s++) {
       var sl = slots[s];
@@ -689,6 +696,7 @@
       if (isPlacedEighthNote) {
         if (sl.startUnit % 2 === 0) flushBeam();
         group.push(sl.note);
+        groupIdx.push(sl.eventIndex);
         if ((sl.startUnit + 1) % 2 === 0) flushBeam();
       } else {
         flushBeam();
@@ -706,6 +714,19 @@
         '<div class="ss-editor-message">Could not render this bar.</div>';
       geo = null;
       return;
+    }
+
+    /* ---- capture element handles for hover treatments ----
+       VexFlow renders each element as an svg group with id "vf-<attrs.id>". */
+    function vexElementFor(element) {
+      if (!element || !element.attrs) return null;
+      return document.getElementById("vf-" + element.attrs.id);
+    }
+    for (var e2 = 0; e2 < slots.length; e2++) {
+      slots[e2].el = vexElementFor(slots[e2].note);
+    }
+    for (var b2 = 0; b2 < beamRecords.length; b2++) {
+      beamRecords[b2].el = vexElementFor(beamRecords[b2].beam);
     }
 
     /* ---- capture geometry for the input overlay ---- */
@@ -732,6 +753,7 @@
       height: height,
       anchors: anchors,
       slots: slots,
+      beamRecords: beamRecords,
       staveTopY: stave.getYForLine(0),
       staveBottomY: yBottom,
       yBottom: yBottom,
@@ -843,6 +865,30 @@
 
   /* ---- overlay rendering ------------------------------------------------------------ */
 
+  /* Dim the score glyphs (and beams) that the hovered action would remove. */
+  function setDoomed(eventIndexes) {
+    if (!geo) return;
+    var lookup = {};
+    for (var i = 0; i < eventIndexes.length; i++) {
+      lookup[eventIndexes[i]] = true;
+    }
+    for (var s = 0; s < geo.slots.length; s++) {
+      var slot = geo.slots[s];
+      if (slot.kind !== "event" || !slot.el) continue;
+      slot.el.classList.toggle("ss-doomed", !!lookup[slot.eventIndex]);
+    }
+    var beamRecords = geo.beamRecords || [];
+    for (var b = 0; b < beamRecords.length; b++) {
+      var record = beamRecords[b];
+      if (!record.el) continue;
+      var allDoomed = record.eventIndexes.length > 0;
+      for (var k = 0; k < record.eventIndexes.length; k++) {
+        if (!lookup[record.eventIndexes[k]]) allDoomed = false;
+      }
+      record.el.classList.toggle("ss-doomed", allDoomed);
+    }
+  }
+
   function clearOverlay() {
     var els = stageEls();
     if (!els) return;
@@ -850,6 +896,7 @@
       els.overlay.removeChild(els.overlay.firstChild);
     }
     if (els.ghostLabel) els.ghostLabel.style.display = "none";
+    setDoomed([]);
   }
 
   function showGhostLabel(text, x, y, variant) {
@@ -891,6 +938,7 @@
     if (ghost.type === "erase") {
       var target = state.events[ghost.eventIndex];
       if (!target) return;
+      setDoomed([ghost.eventIndex]);
       var ex0 = unitToX(target.startUnit) - 12;
       var ex1 = unitToX(eventEndUnit(target)) - 6;
       svgEl(
@@ -920,10 +968,20 @@
 
     /* note / rest placement ghost */
     var x0 = unitToX(ghost.startUnit);
-    var x1 = unitToX(ghost.startUnit + ghost.units);
-    var spanX = x0 - 12;
-    var spanW = Math.max(26, x1 - x0 - 2);
     var replacing = ghost.replaces && ghost.replaces.length;
+    if (replacing) setDoomed(ghost.replaces);
+
+    /*
+     * The span uses a uniform unit width so a given duration always
+     * shows the same box size, regardless of how VexFlow spaced the
+     * surrounding glyphs. Anchor it just left of the ghost notehead and
+     * keep it inside the bar.
+     */
+    var uniformUnit = (geo.rightX - geo.anchors[0].x) / BAR_UNITS;
+    var spanW = Math.max(34, ghost.units * uniformUnit);
+    var spanX = x0 - 14;
+    if (spanX + spanW > geo.rightX + 8) spanX = geo.rightX + 8 - spanW;
+    if (spanX < geo.leftX - 8) spanX = geo.leftX - 8;
 
     var spanAttrs = {
       x: spanX,
@@ -936,6 +994,7 @@
       stroke: accent,
       "stroke-opacity": replacing ? 0.7 : 0.45,
       "stroke-width": 1.4,
+      "data-ss": "ghost-span",
     };
     if (!replacing) spanAttrs["stroke-dasharray"] = "4 3";
     svgEl("rect", spanAttrs, overlay);
@@ -960,7 +1019,7 @@
       );
       showGhostLabel(
         DURATION_LABELS[state.duration] + " rest",
-        (x0 + x1) / 2 - 6,
+        spanX + spanW / 2,
         geo.staveTopY - 24,
         null
       );

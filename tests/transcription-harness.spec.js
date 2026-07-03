@@ -106,6 +106,43 @@ test("clicking an occupied slot overwrites without the eraser", async ({
   ]);
 });
 
+test("ghost span width is constant per duration and replaced notes dim", async ({
+  page,
+}) => {
+  const hoverAt = async (unit, pitch) => {
+    const point = await page.evaluate(
+      ([u, p]) => window.SightSingingTranscriptionDebug.clientPoint(u, p),
+      [unit, pitch]
+    );
+    await page.mouse.move(point.x, point.y);
+  };
+  const spanWidth = () =>
+    page
+      .locator('[data-ss="ghost-span"]')
+      .evaluate((el) => el.getBoundingClientRect().width);
+
+  await page.locator("#transcribe-duration-8").click();
+  await hoverAt(0, "G4");
+  const widthAtStart = await spanWidth();
+  await hoverAt(6, "G4");
+  const widthNearEnd = await spanWidth();
+  expect(Math.abs(widthAtStart - widthNearEnd)).toBeLessThan(1);
+
+  // Place a quarter, then hover a replacement over it: same eighth span
+  // width as before, and the existing note's glyph dims.
+  await page.locator("#transcribe-duration-q").click();
+  await tapStaff(page, 0, "E4");
+  await page.locator("#transcribe-duration-8").click();
+  await hoverAt(0, "B4");
+  const widthOverOccupied = await spanWidth();
+  expect(Math.abs(widthOverOccupied - widthAtStart)).toBeLessThan(1);
+  await expect(page.locator(".ss-editor-score .ss-doomed")).toHaveCount(1);
+
+  // Moving to a free slot restores the note.
+  await hoverAt(4, "B4");
+  await expect(page.locator(".ss-editor-score .ss-doomed")).toHaveCount(0);
+});
+
 test("commit uses the last move position, not button-event coordinates", async ({
   page,
 }) => {
