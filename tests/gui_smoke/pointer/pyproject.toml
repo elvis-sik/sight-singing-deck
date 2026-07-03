@@ -1,0 +1,10 @@
+# Dedicated workbench config for the reviewer pointer-input probe.
+# Run via: make workbench-pointer-smoke
+# (anki-workbench --config-root tests/gui_smoke/pointer smoke --xvfb)
+[tool.anki-addon-workbench]
+project_name = "Sight Singing Pointer Probe"
+seed_apkgs = ["../../../out/sight-singing-mvp.apkg"]
+probe_addon = "probe_addon"
+anki_version = "25.09"
+docker_image = "sight-singing-deck-anki-workbench"
+docker_workbench_spec = "anki-addon-workbench[gui]==0.4.0"

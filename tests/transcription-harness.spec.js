@@ -40,6 +40,21 @@ test("starts with quarter notes selected and places a note by tapping", async ({
     "1 of 4 beats"
   );
 
+  // The engraved score must draw the note at the aimed pitch, not just
+  // store it: compare the rendered notehead's y with the pitch reference.
+  const rendered = await page.evaluate(() => {
+    const dbg = window.SightSingingTranscriptionDebug;
+    const heads = Array.from(
+      document.querySelectorAll(".ss-editor-score svg .vf-notehead")
+    ).map((n) => {
+      const r = n.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    });
+    const placed = heads.reduce((a, b) => (a && a.x < b.x ? a : b), null);
+    return { noteheadY: placed && placed.y, expectedY: dbg.clientPoint(0, "E4").y };
+  });
+  expect(Math.abs(rendered.noteheadY - rendered.expectedY)).toBeLessThan(3);
+
   const firstBeatWidth = await page
     .locator(".ss-beat-fill")
     .first()

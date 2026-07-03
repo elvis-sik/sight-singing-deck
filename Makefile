@@ -87,4 +87,16 @@ workbench-smoke: apkg workbench-dockerfile
 	docker build -f $(WORKBENCH_DOCKERFILE) -t $(DOCKER_IMAGE) .
 	docker run --rm --mount type=bind,source="$(CURDIR)",target=/workspace -w /workspace $(DOCKER_IMAGE)
 
+# Real-input pointer probe: drives the reviewer's transcription editor with
+# xdotool inside Docker/Xvfb and checks the placed pitch matches the aim.
+# Override SS_PROBE_ZOOM (e.g. 2.0) to test a scaled webview.
+SS_PROBE_ZOOM ?= 1
+workbench-pointer-smoke:
+	docker run --rm \
+		-e SS_PROBE_ZOOM=$(SS_PROBE_ZOOM) \
+		-e SS_PROBE_SHOT_DIR=/workspace/out \
+		--mount type=bind,source="$(CURDIR)",target=/workspace -w /workspace \
+		$(DOCKER_IMAGE) \
+		sh -lc 'Xvfb :99 -screen 0 1280x1024x24 -nolisten tcp & xvfb_pid=$$!; export DISPLAY=:99; python3 -m anki_addon_workbench --config-root tests/gui_smoke/pointer smoke; status=$$?; kill "$$xvfb_pid" 2>/dev/null || true; exit "$$status"'
+
 check: lint type test

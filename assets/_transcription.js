@@ -645,9 +645,14 @@
             duration: slot.event.duration + "r",
           });
         } else {
+          /* "G4" -> "g/4" (letter + octave; editor pitches carry no accidentals) */
           note = new VF.StaveNote({
             clef: "treble",
-            keys: [slot.event.pitch[0].toLowerCase() + "/" + slot.event.pitch[2]],
+            keys: [
+              slot.event.pitch.charAt(0).toLowerCase() +
+                "/" +
+                slot.event.pitch.slice(1),
+            ],
             duration: slot.event.duration,
           });
         }
