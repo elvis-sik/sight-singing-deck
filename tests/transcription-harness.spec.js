@@ -143,6 +143,41 @@ test("ghost span width is constant per duration and replaced notes dim", async (
   await expect(page.locator(".ss-editor-score .ss-doomed")).toHaveCount(0);
 });
 
+test("block selection flips right at the visible edge of the highlight box", async ({
+  page,
+}) => {
+  await page.locator("#transcribe-duration-q").click();
+
+  // Aim at the first quarter tile and read the highlight box geometry.
+  const start = await page.evaluate(() =>
+    window.SightSingingTranscriptionDebug.clientPoint(0, "G4")
+  );
+  await page.mouse.move(start.x, start.y);
+  const box = await page
+    .locator('[data-ss="ghost-span"]')
+    .evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return { left: r.left, right: r.right };
+    });
+
+  // Placing a note reports which block was selected; undo to stay clean.
+  const placedStartUnit = async (clientX) => {
+    await page.mouse.move(clientX, start.y);
+    await page.mouse.down();
+    await page.mouse.up();
+    const startUnit = await page.evaluate(
+      () => window.SightSingingTranscriptionDebug.getState().events[0].startUnit
+    );
+    await page.locator("#transcribe-undo").click();
+    return startUnit;
+  };
+
+  // Just inside the right edge → still the first block (unit 0).
+  expect(await placedStartUnit(box.right - 3)).toBe(0);
+  // A few pixels past the visible edge → next block (unit 2).
+  expect(await placedStartUnit(box.right + 4)).toBe(2);
+});
+
 test("commit uses the last move position, not button-event coordinates", async ({
   page,
 }) => {

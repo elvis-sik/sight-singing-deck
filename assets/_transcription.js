@@ -748,6 +748,16 @@
     var yBottom = stave.getYForLine(4); // E4 line
     var halfStep = (stave.getYForLine(4) - stave.getYForLine(3)) / 2;
 
+    /*
+     * Uniform pixel grid over the bar. Block selection and the ghost
+     * highlight both use this grid (not VexFlow's proportional glyph
+     * spacing) so the visible edge of the purple box is exactly the
+     * point where hovering flips to the next block.
+     */
+    var gridLeft = stave.getNoteStartX();
+    var gridRight = stave.getX() + stave.getWidth() - 10;
+    var unitPx = (gridRight - gridLeft) / BAR_UNITS;
+
     geo = {
       width: width,
       height: height,
@@ -758,8 +768,11 @@
       staveBottomY: yBottom,
       yBottom: yBottom,
       halfStep: halfStep,
-      leftX: anchors[0].x - 14,
-      rightX: stave.getX() + stave.getWidth() - 6,
+      gridLeft: gridLeft,
+      gridRight: gridRight,
+      unitPx: unitPx,
+      leftX: gridLeft - 14,
+      rightX: gridRight,
     };
 
     var overlay = els.overlay;
@@ -798,6 +811,20 @@
     return BAR_UNITS;
   }
 
+  /* Uniform grid: pixel x for a unit boundary, used by the ghost box. */
+  function gridX(unit) {
+    return geo.gridLeft + unit * geo.unitPx;
+  }
+
+  /* Which duration-sized tile the pointer sits in, on the uniform grid. */
+  function tileStartForX(x, units) {
+    var maxTile = Math.floor(BAR_UNITS / units) - 1;
+    var tile = Math.floor((x - geo.gridLeft) / (geo.unitPx * units));
+    if (tile < 0) tile = 0;
+    if (tile > maxTile) tile = maxTile;
+    return tile * units;
+  }
+
   function yForPitchIndex(index) {
     return geo.yBottom - (index - 2) * geo.halfStep;
   }
@@ -826,21 +853,13 @@
     }
 
     /*
-     * Placement targets every grid-aligned start for the selected
-     * duration, occupied or not: painting over existing events replaces
+     * Placement snaps to the uniform-grid tile the pointer is over, so
+     * the selection flips exactly when the pointer crosses the visible
+     * edge of the highlight box. Painting over existing events replaces
      * them, so no eraser round-trip is needed for corrections.
      */
     var units = durationUnits(state.duration);
-    var pointerUnit = xToUnit(x);
-    var best = 0;
-    var bestDist = Infinity;
-    for (var s = 0; s + units <= BAR_UNITS; s += units) {
-      var dist = Math.abs(s + units / 2 - pointerUnit);
-      if (dist < bestDist) {
-        bestDist = dist;
-        best = s;
-      }
-    }
+    var best = tileStartForX(x, units);
 
     var replaces = [];
     for (var i = 0; i < state.events.length; i++) {
@@ -967,21 +986,18 @@
     }
 
     /* note / rest placement ghost */
-    var x0 = unitToX(ghost.startUnit);
     var replacing = ghost.replaces && ghost.replaces.length;
     if (replacing) setDoomed(ghost.replaces);
 
     /*
-     * The span uses a uniform unit width so a given duration always
-     * shows the same box size, regardless of how VexFlow spaced the
-     * surrounding glyphs. Anchor it just left of the ghost notehead and
-     * keep it inside the bar.
+     * The box is exactly the pointer's uniform-grid tile: its width is
+     * constant per duration and its edges are the selection boundaries,
+     * so nudging the pointer past the visible edge flips to the next
+     * block. The ghost notehead sits at the start of the tile.
      */
-    var uniformUnit = (geo.rightX - geo.anchors[0].x) / BAR_UNITS;
-    var spanW = Math.max(34, ghost.units * uniformUnit);
-    var spanX = x0 - 14;
-    if (spanX + spanW > geo.rightX + 8) spanX = geo.rightX + 8 - spanW;
-    if (spanX < geo.leftX - 8) spanX = geo.leftX - 8;
+    var spanX = gridX(ghost.startUnit);
+    var spanW = ghost.units * geo.unitPx;
+    var x0 = spanX + Math.min(geo.unitPx, spanW) * 0.5;
 
     var spanAttrs = {
       x: spanX,
@@ -1007,7 +1023,7 @@
       svgEl(
         "rect",
         {
-          x: x0 - 2,
+          x: spanX + spanW / 2 - 7.5,
           y: restY,
           width: 15,
           height: 5.5,
@@ -1027,7 +1043,7 @@
     }
 
     var noteY = yForPitchIndex(ghost.pitchIndex);
-    var headX = x0 + 2;
+    var headX = x0;
 
     /* ledger line for C4 */
     if (ghost.pitchIndex === 0) {
@@ -1424,7 +1440,9 @@
       var els = stageEls();
       if (!els || !geo) return null;
       var rect = els.overlay.getBoundingClientRect();
-      var x = unitToX(Number(unit)) + 3;
+      // Center of the uniform-grid cell at `unit`, which lands inside the
+      // selection tile for any duration that can start there.
+      var x = gridX(Number(unit) + 0.5);
       var index = pitch ? PITCHES.indexOf(String(pitch)) : 4;
       if (index < 0) index = 4;
       return {
