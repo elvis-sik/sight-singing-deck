@@ -1375,6 +1375,43 @@
     initFront();
   }
 
+  function depsReady() {
+    return !!(
+      window.Vex &&
+      window.Vex.Flow &&
+      window.SightSingingParseData &&
+      window.SightSingingDrawStaff
+    );
+  }
+
+  /*
+   * Boot once both VexFlow and the renderer API are available, then drive
+   * the correct side ourselves. Anki re-executes the card's <script src>
+   * tags as async, out-of-order nodes (pronounced on AnkiMobile/iOS), so
+   * this file can run before _vexflow_*.js or _renderer_*.js finish, and
+   * the template's trailing SightSingingTranscriptionReview() call can
+   * fire before this file defines it. Self-triggering after deps are
+   * ready makes rendering independent of load order and call timing.
+   */
+  function boot() {
+    if (!depsReady()) {
+      var tries = 0;
+      var timer = setInterval(function () {
+        tries += 1;
+        if (depsReady() || tries > 200) {
+          clearInterval(timer);
+          boot();
+        }
+      }, 25);
+      return;
+    }
+    if (isBack()) {
+      window.SightSingingTranscriptionReview();
+    } else {
+      init();
+    }
+  }
+
   /* ---- public API ------------------------------------------------------------------------------ */
 
   window.SightSingingTranscriptionSetTool = function (tool) {
@@ -1453,8 +1490,8 @@
   };
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
+    document.addEventListener("DOMContentLoaded", boot);
   } else {
-    init();
+    boot();
   }
 })();

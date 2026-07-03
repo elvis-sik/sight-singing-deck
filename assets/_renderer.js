@@ -367,6 +367,34 @@
     }
   }
 
+  function vexReady() {
+    return !!(window.Vex && window.Vex.Flow);
+  }
+
+  /*
+   * Draw once VexFlow is available. Anki (and AnkiMobile especially)
+   * re-executes the card's <script src> tags as dynamically-created
+   * nodes, which load ASYNCHRONOUSLY and out of order — so this renderer
+   * can run before _vexflow_*.js has finished. Polling for Vex before we
+   * draw means the notation still appears regardless of load order,
+   * instead of silently falling back to text (or nothing). Falls back
+   * after ~5s so a genuinely missing bundle still degrades gracefully.
+   */
+  function runWhenReady() {
+    if (vexReady()) {
+      run();
+      return;
+    }
+    var tries = 0;
+    var timer = setInterval(function () {
+      tries += 1;
+      if (vexReady() || tries > 200) {
+        clearInterval(timer);
+        run();
+      }
+    }, 25);
+  }
+
   var resizeTimer = null;
   window.addEventListener("resize", function () {
     if (resizeTimer) clearTimeout(resizeTimer);
@@ -378,11 +406,11 @@
   window.SightSingingDrawStaff = drawStaff;
   window.SightSingingRenderDegrees = renderDegrees;
   window.SightSingingThemeVar = themeVar;
-  window.SightSingingRedraw = run;
+  window.SightSingingRedraw = runWhenReady;
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", run);
+    document.addEventListener("DOMContentLoaded", runWhenReady);
   } else {
-    run();
+    runWhenReady();
   }
 })();

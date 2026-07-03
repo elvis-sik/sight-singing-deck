@@ -9,11 +9,11 @@ import genanki
 # Stable IDs for this deck (change if you fork a separate published deck).
 DECK_ID = 2_948_817_001
 MODEL_ID = 2_948_817_015
-MODEL_NAME = "Sight Singing (MVP v20 engraved editor)"
+MODEL_NAME = "Sight Singing (MVP v21 engraved editor)"
 
 VEXFLOW_ASSET_NAME = "_vexflow_ss_v1.js"
-RENDERER_ASSET_NAME = "_renderer_ss_v3.js"
-TRANSCRIPTION_ASSET_NAME = "_transcription_ss_v8.js"
+RENDERER_ASSET_NAME = "_renderer_ss_v4.js"
+TRANSCRIPTION_ASSET_NAME = "_transcription_ss_v9.js"
 
 _CSS_PATH = Path(__file__).resolve().parents[2] / "assets" / "card_styles.css"
 

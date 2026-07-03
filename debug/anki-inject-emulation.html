@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Anki Injection Emulation</title>
+    <link rel="stylesheet" href="../assets/card_styles.css" />
+    <style>
+      body { margin: 0; padding: 16px; }
+    </style>
+  </head>
+  <body class="card">
+    <div id="qa"></div>
+
+    <script>
+      /*
+       * Reproduce how Anki (reviewer + AnkiMobile) injects a card: the HTML
+       * is set via innerHTML (so <script> tags do NOT auto-run), then each
+       * script node is re-created so it executes. Dynamically-created
+       * `src` scripts load ASYNCHRONOUSLY and are NOT order-guaranteed —
+       * exactly the condition that makes iOS WKWebView (slower local media
+       * server) race where desktop QtWebEngine happens to win.
+       *
+       * ?side=front|back  chooses the fixture
+       * ?delay=<ms>       artificial per-src load delay to widen the race
+       */
+      (function () {
+        var params = new URLSearchParams(location.search);
+        var side = params.get("side") === "front" ? "front" : "back";
+        var card = params.get("card") === "transcribe" ? "transcribe" : "sing";
+        var delay = parseInt(params.get("delay") || "60", 10);
+
+        // Map the apkg media names in the fixtures to the real asset files.
+        function realSrc(src) {
+          if (/_vexflow/.test(src)) return "../assets/_vexflow.js";
+          if (/_renderer/.test(src)) return "../assets/_renderer.js";
+          if (/_transcription/.test(src)) return "../assets/_transcription.js";
+          return src;
+        }
+
+        fetch("_fixtures/" + card + "-" + side + ".html")
+          .then(function (r) { return r.text(); })
+          .then(function (html) {
+            var qa = document.getElementById("qa");
+            qa.innerHTML = html; // scripts inserted this way never run
+
+            var oldScripts = Array.prototype.slice.call(
+              qa.querySelectorAll("script")
+            );
+
+            // Re-create every script node in one synchronous pass, the way
+            // Anki does. Inline scripts execute immediately on insertion;
+            // `src` scripts only kick off an async load. So a trailing
+            // inline call (SightSingingRedraw()) runs BEFORE the async
+            // renderer src has executed — the exact ordering hazard.
+            oldScripts.forEach(function (old) {
+              var s = document.createElement("script");
+              for (var a = 0; a < old.attributes.length; a++) {
+                s.setAttribute(old.attributes[a].name, old.attributes[a].value);
+              }
+              if (old.src) {
+                s.src = realSrc(old.getAttribute("src"));
+                if (delay > 0) s.setAttribute("data-delay", String(delay));
+              } else {
+                s.textContent = old.textContent;
+              }
+              old.parentNode.replaceChild(s, old);
+            });
+          });
+      })();
+    </script>
+  </body>
+</html>
