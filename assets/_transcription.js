@@ -1,41 +1,25 @@
-/* global window, document, localStorage */
+/* global window, document, localStorage, Vex */
 (function () {
   "use strict";
 
+  /* ---- music model ------------------------------------------------------- */
+
   var PITCHES = ["C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5"];
-  var PITCH_Y = {
-    C4: 108,
-    D4: 100,
-    E4: 92,
-    F4: 84,
-    G4: 76,
-    A4: 68,
-    B4: 60,
-    C5: 52,
-  };
-  var STAFF_LINES = [28, 44, 60, 76, 92];
-  var BAR_LEFT = 54;
-  var BAR_RIGHT = 18;
-  var BAR_UNITS = 8;
-  var DURATION_UNITS = {
-    "8": 1,
-    q: 2,
-    h: 4,
-    w: 8,
-  };
+  var BAR_UNITS = 8; // eighth-note units in one 4/4 bar
+  var DURATION_UNITS = { "8": 1, q: 2, h: 4, w: 8 };
   var DURATION_ORDER = ["w", "h", "q", "8"];
-  var DURATION_LABELS = {
-    "8": "Eighth",
-    q: "Quarter",
-    h: "Half",
-    w: "Whole",
-  };
+  var DURATION_LABELS = { "8": "Eighth", q: "Quarter", h: "Half", w: "Whole" };
 
   var state = {
-    mode: "note",
-    duration: "w",
+    mode: "note", // note | rest | erase
+    duration: "q",
     events: [],
+    history: [],
   };
+
+  /* Geometry captured after each VexFlow render. */
+  var geo = null;
+  var hover = null;
 
   function isBack() {
     return !!document.getElementById("back");
@@ -46,6 +30,13 @@
       return window.SightSingingParseData();
     }
     return null;
+  }
+
+  function themeVar(name, fallback) {
+    if (window.SightSingingThemeVar) {
+      return window.SightSingingThemeVar(name, fallback);
+    }
+    return fallback;
   }
 
   function melodyId() {
@@ -60,15 +51,30 @@
     return DURATION_UNITS[String(duration || "")] || 0;
   }
 
-  function durationStep(duration) {
-    return durationUnits(duration);
+  function eventUnits(event) {
+    return durationUnits(event.duration);
+  }
+
+  function eventEndUnit(event) {
+    return event.startUnit + eventUnits(event);
+  }
+
+  function occupiedUnits(events) {
+    var occupied = [false, false, false, false, false, false, false, false];
+    for (var i = 0; i < events.length; i++) {
+      var end = eventEndUnit(events[i]);
+      for (var unit = events[i].startUnit; unit < end; unit++) {
+        if (unit >= 0 && unit < BAR_UNITS) occupied[unit] = true;
+      }
+    }
+    return occupied;
   }
 
   function durationFitsAt(startUnit, duration, occupied) {
     var units = durationUnits(duration);
     if (!units) return false;
     if (startUnit < 0 || startUnit + units > BAR_UNITS) return false;
-    if (startUnit % durationStep(duration) !== 0) return false;
+    if (startUnit % units !== 0) return false;
     for (var i = startUnit; i < startUnit + units; i++) {
       if (occupied[i]) return false;
     }
@@ -88,10 +94,9 @@
   function normalizedEvent(event) {
     var cloned = cloneEvent(event);
     if (!cloned) return null;
-    if (!durationFitsAt(cloned.startUnit, cloned.duration, occupiedUnits([]))) {
-      return null;
-    }
-    if (cloned.kind === "note" && !PITCH_Y[cloned.pitch]) return null;
+    var empty = occupiedUnits([]);
+    if (!durationFitsAt(cloned.startUnit, cloned.duration, empty)) return null;
+    if (cloned.kind === "note" && PITCHES.indexOf(cloned.pitch) < 0) return null;
     return cloned;
   }
 
@@ -130,47 +135,6 @@
     } catch (e) {}
   }
 
-  function nearestPitch(y) {
-    var bestPitch = PITCHES[0];
-    var bestDistance = Infinity;
-    for (var i = 0; i < PITCHES.length; i++) {
-      var pitch = PITCHES[i];
-      var dist = Math.abs(y - PITCH_Y[pitch]);
-      if (dist < bestDistance) {
-        bestDistance = dist;
-        bestPitch = pitch;
-      }
-    }
-    return bestPitch;
-  }
-
-  function editorMetrics(editorEl) {
-    var width = Math.max(editorEl.clientWidth || 0, 300);
-    var usableWidth = width - BAR_LEFT - BAR_RIGHT;
-    var unitWidth = usableWidth / BAR_UNITS;
-    return {
-      width: width,
-      usableWidth: usableWidth,
-      unitWidth: unitWidth,
-    };
-  }
-
-  function unitX(metrics, unit) {
-    return BAR_LEFT + metrics.unitWidth * unit;
-  }
-
-  function quarterCenterX(metrics, beatIndex) {
-    return BAR_LEFT + metrics.unitWidth * (beatIndex * 2 + 1);
-  }
-
-  function eventUnits(event) {
-    return durationUnits(event.duration);
-  }
-
-  function eventEndUnit(event) {
-    return event.startUnit + eventUnits(event);
-  }
-
   function sortEvents() {
     state.events.sort(function (a, b) {
       return a.startUnit - b.startUnit;
@@ -185,119 +149,58 @@
     return total;
   }
 
-  function occupiedUnits(events) {
-    var occupied = [false, false, false, false, false, false, false, false];
-    var source = Array.isArray(events) ? events : state.events;
-    for (var i = 0; i < source.length; i++) {
-      var event = source[i];
-      var end = eventEndUnit(event);
-      for (var unit = event.startUnit; unit < end; unit++) {
-        if (unit >= 0 && unit < BAR_UNITS) {
-          occupied[unit] = true;
-        }
-      }
-    }
-    return occupied;
-  }
-
-  function eventAtUnit(unit) {
+  function eventIndexAtUnit(unit) {
     for (var i = 0; i < state.events.length; i++) {
-      if (state.events[i].startUnit <= unit && eventEndUnit(state.events[i]) > unit) {
+      if (
+        state.events[i].startUnit <= unit &&
+        eventEndUnit(state.events[i]) > unit
+      ) {
         return i;
       }
     }
     return -1;
   }
 
-  function freeIntervals() {
-    var occupied = occupiedUnits();
+  /* Decompose the free space into displayable placeholder chunks. */
+  function freeChunks() {
+    var occupied = occupiedUnits(state.events);
     var cursor = 0;
     var out = [];
-
     while (cursor < BAR_UNITS) {
       if (occupied[cursor]) {
         cursor += 1;
         continue;
       }
-
       var chosen = "8";
       for (var i = 0; i < DURATION_ORDER.length; i++) {
-        var duration = DURATION_ORDER[i];
-        if (durationFitsAt(cursor, duration, occupied)) {
-          chosen = duration;
+        if (durationFitsAt(cursor, DURATION_ORDER[i], occupied)) {
+          chosen = DURATION_ORDER[i];
           break;
         }
       }
-
-      out.push({
-        startUnit: cursor,
-        duration: chosen,
-      });
+      out.push({ startUnit: cursor, duration: chosen });
       cursor += durationUnits(chosen);
     }
-
     return out;
   }
 
-  function placementZones() {
-    var zones = [];
-    var occupied = occupiedUnits();
-    if (state.mode === "erase") {
-      for (var unit = 0; unit < BAR_UNITS; unit++) {
-        zones.push({
-          startUnit: unit,
-          duration: "8",
-          valid: eventAtUnit(unit) >= 0,
-        });
-      }
-      return zones;
+  /* Valid start units for the currently selected duration. */
+  function validStarts() {
+    var occupied = occupiedUnits(state.events);
+    var step = durationUnits(state.duration);
+    var out = [];
+    for (var start = 0; start + step <= BAR_UNITS; start += step) {
+      if (durationFitsAt(start, state.duration, occupied)) out.push(start);
     }
-
-    var step = durationStep(state.duration);
-    for (var start = 0; start < BAR_UNITS; start += step) {
-      zones.push({
-        startUnit: start,
-        duration: state.duration,
-        valid: durationFitsAt(start, state.duration, occupied),
-      });
-    }
-    return zones;
+    return out;
   }
 
-  function setStatus(html, strong) {
-    var el = document.getElementById("transcribe-status");
-    if (!el) return;
-    if (strong) {
-      el.innerHTML = "<strong>" + strong + "</strong> " + html;
-    } else {
-      el.innerHTML = html;
-    }
+  function pushHistory() {
+    state.history.push(state.events.map(cloneEvent));
+    if (state.history.length > 60) state.history.shift();
   }
 
-  function updateToolbar() {
-    var toolIds = ["note", "rest", "erase"];
-    for (var i = 0; i < toolIds.length; i++) {
-      var tool = toolIds[i];
-      var toolBtn = document.getElementById("transcribe-tool-" + tool);
-      if (toolBtn) {
-        toolBtn.className =
-          "ss-btn" + (state.mode === tool ? " ss-tool-active" : "");
-      }
-    }
-
-    var durationIds = ["8", "q", "h", "w"];
-    for (var j = 0; j < durationIds.length; j++) {
-      var duration = durationIds[j];
-      var durationBtn = document.getElementById(
-        "transcribe-duration-" + duration
-      );
-      if (durationBtn) {
-        durationBtn.className =
-          "ss-btn" +
-          (state.duration === duration ? " ss-tool-active" : "");
-      }
-    }
-  }
+  /* ---- target / validation ------------------------------------------------ */
 
   function targetEventsFromData(data) {
     if (!data || !Array.isArray(data.events)) return [];
@@ -335,382 +238,1119 @@
         if (event.kind === "rest") {
           return { kind: "rest", duration: event.duration };
         }
-        return {
-          kind: "note",
-          pitch: event.pitch,
-          duration: event.duration,
-        };
+        return { kind: "note", pitch: event.pitch, duration: event.duration };
       }),
     };
   }
 
-  function renderFreeIntervals(editorEl, metrics) {
-    var intervals = freeIntervals();
-    for (var i = 0; i < intervals.length; i++) {
-      var interval = intervals[i];
-      var startX = unitX(metrics, interval.startUnit);
-      var width = metrics.unitWidth * durationUnits(interval.duration);
-
-      var gap = document.createElement("div");
-      gap.className = "ss-transcribe-gap";
-      gap.style.left = startX + 4 + "px";
-      gap.style.width = Math.max(18, width - 8) + "px";
-      editorEl.appendChild(gap);
-
-      var label = document.createElement("div");
-      label.className = "ss-transcribe-gap-label";
-      label.style.left = startX + width / 2 + "px";
-      label.textContent = interval.duration;
-      editorEl.appendChild(label);
-    }
+  function eventsMatch(userEvent, targetEvent) {
+    return (
+      !!targetEvent &&
+      userEvent.kind === targetEvent.kind &&
+      userEvent.startUnit === targetEvent.startUnit &&
+      userEvent.duration === targetEvent.duration &&
+      (userEvent.kind === "rest" || userEvent.pitch === targetEvent.pitch)
+    );
   }
 
-  function renderPlacementZones(editorEl, metrics, readonly) {
-    var zones = placementZones();
-    for (var i = 0; i < zones.length; i++) {
-      var zone = zones[i];
-      var startX = unitX(metrics, zone.startUnit);
-      var width = metrics.unitWidth * durationUnits(zone.duration);
+  /* ---- svg helpers --------------------------------------------------------- */
 
-      var hit = document.createElement("button");
-      hit.type = "button";
-      hit.className =
-        "ss-transcribe-hit" +
-        (zone.valid ? " ss-transcribe-hit-valid" : " ss-transcribe-hit-invalid");
-      hit.style.left = startX + "px";
-      hit.style.width = width + "px";
-      hit.dataset.startUnit = String(zone.startUnit);
-      hit.dataset.duration = zone.duration;
-      if (!readonly && zone.valid) {
-        hit.addEventListener("click", handleZoneClick);
+  var SVG_NS = "http://www.w3.org/2000/svg";
+
+  function svgEl(tag, attrs, parent) {
+    var el = document.createElementNS(SVG_NS, tag);
+    for (var key in attrs) {
+      if (Object.prototype.hasOwnProperty.call(attrs, key)) {
+        el.setAttribute(key, String(attrs[key]));
+      }
+    }
+    if (parent) parent.appendChild(el);
+    return el;
+  }
+
+  /* ---- toolbar icons -------------------------------------------------------- */
+
+  function noteIconSvg(duration) {
+    var stem =
+      duration === "w"
+        ? ""
+        : '<rect x="15.1" y="5" width="1.9" height="17.5" rx="0.9"/>';
+    var flag =
+      duration === "8"
+        ? '<path d="M17 5 C 20.8 8.2, 21.6 12.4, 18.6 16.6 C 20.4 11.8, 18.6 9.6, 17 9.2 Z"/>'
+        : "";
+    var head;
+    if (duration === "w") {
+      head =
+        '<ellipse cx="12" cy="22.4" rx="6.4" ry="4.3" fill="none" stroke-width="2.6" stroke="currentColor"/>';
+    } else if (duration === "h") {
+      head =
+        '<ellipse cx="11" cy="22.6" rx="5.1" ry="3.7" fill="none" stroke-width="2.4" stroke="currentColor" transform="rotate(-16 11 22.6)"/>';
+    } else {
+      head =
+        '<ellipse cx="11" cy="22.6" rx="5.2" ry="3.8" transform="rotate(-16 11 22.6)"/>';
+    }
+    return (
+      '<svg viewBox="0 0 24 30" aria-hidden="true">' + head + stem + flag + "</svg>"
+    );
+  }
+
+  function restIconSvg(duration) {
+    var body;
+    if (duration === "w") {
+      body =
+        '<rect x="4.5" y="12.4" width="15" height="1.7" rx="0.8"/>' +
+        '<rect x="7.6" y="14.1" width="8.8" height="4.6" rx="1"/>';
+    } else if (duration === "h") {
+      body =
+        '<rect x="4.5" y="16.4" width="15" height="1.7" rx="0.8"/>' +
+        '<rect x="7.6" y="11.8" width="8.8" height="4.6" rx="1"/>';
+    } else if (duration === "q") {
+      body =
+        '<path d="M10.2 5.5 L15.2 11.4 C 12.8 13.4, 12.6 15.2, 15.4 18.2 C 11.2 17.2, 10 19.4, 12.4 22.8 C 7.6 21, 7.6 17, 10.8 15.6 C 8.2 12.8, 8.4 9.6, 10.2 5.5 Z"/>';
+    } else {
+      body =
+        '<circle cx="9.2" cy="11.2" r="2.5"/>' +
+        '<path d="M9.4 13.4 C 12.4 14.8, 14.6 14.2, 16.6 12.2 L 13.2 24.6 L 11.4 24.6 L 14.4 15.4 C 12.6 16.2, 10.6 15.8, 9.4 13.4 Z"/>';
+    }
+    return '<svg viewBox="0 0 24 30" aria-hidden="true">' + body + "</svg>";
+  }
+
+  function undoIconSvg() {
+    return (
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.5 4.5 C 17 4.5, 20.5 8, 20.5 12.4 C 20.5 16.9, 17 20.4, 12.5 20.4 L 10 20.4 L 10 18 L 12.5 18 C 15.7 18, 18.1 15.5, 18.1 12.4 C 18.1 9.3, 15.7 6.9, 12.5 6.9 L 8.6 6.9 L 11.4 9.7 L 9.7 11.4 L 4 5.7 L 9.7 0 L 11.4 1.7 L 8.6 4.5 Z" transform="translate(0 2)"/></svg>'
+    );
+  }
+
+  function clearIconSvg() {
+    return (
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3 L15 3 L15 5 L20 5 L20 7 L4 7 L4 5 L9 5 Z"/><path d="M6 9 L18 9 L17 21 L7 21 Z"/></svg>'
+    );
+  }
+
+  function eraseIconSvg() {
+    return (
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 3.5 L21 9 L12.5 17.5 L7 17.5 L3 13.5 L11.5 5 Z M6.2 12.4 L9.1 15.3 L11 13.4 L8.1 10.5 Z"/><rect x="3" y="19.5" width="18" height="2" rx="1"/></svg>'
+    );
+  }
+
+  /* ---- UI construction -------------------------------------------------------- */
+
+  function buildButton(id, className, html, onTap) {
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.id = id;
+    btn.className = className;
+    btn.innerHTML = html;
+    btn.addEventListener("click", function (event) {
+      event.preventDefault();
+      onTap();
+    });
+    return btn;
+  }
+
+  function buildUI() {
+    var ui = document.getElementById("transcribe-ui");
+    if (!ui) return;
+    ui.innerHTML = "";
+
+    var durbar = document.createElement("div");
+    durbar.className = "ss-toolbar ss-durbar";
+    durbar.id = "transcribe-durbar";
+    var durations = ["8", "q", "h", "w"];
+    for (var i = 0; i < durations.length; i++) {
+      (function (duration) {
+        var btn = buildButton(
+          "transcribe-duration-" + duration,
+          "ss-btn ss-btn-duration",
+          "",
+          function () {
+            window.SightSingingTranscriptionSetDuration(duration);
+          }
+        );
+        btn.setAttribute("data-transcribe-duration", duration);
+        durbar.appendChild(btn);
+      })(durations[i]);
+    }
+    ui.appendChild(durbar);
+
+    var tools = document.createElement("div");
+    tools.className = "ss-toolbar";
+
+    var seg = document.createElement("div");
+    seg.className = "ss-segmented";
+    var segDefs = [
+      { tool: "note", label: "Notes", icon: noteIconSvg("q") },
+      { tool: "rest", label: "Rests", icon: restIconSvg("q") },
+      { tool: "erase", label: "Erase", icon: eraseIconSvg() },
+    ];
+    for (var j = 0; j < segDefs.length; j++) {
+      (function (def) {
+        var btn = buildButton(
+          "transcribe-tool-" + def.tool,
+          "ss-btn",
+          def.icon + "<span>" + def.label + "</span>",
+          function () {
+            window.SightSingingTranscriptionSetTool(def.tool);
+          }
+        );
+        btn.setAttribute("data-transcribe-tool", def.tool);
+        seg.appendChild(btn);
+      })(segDefs[j]);
+    }
+    tools.appendChild(seg);
+
+    tools.appendChild(
+      buildButton(
+        "transcribe-undo",
+        "ss-btn",
+        undoIconSvg() + "<span>Undo</span>",
+        function () {
+          window.SightSingingTranscriptionUndo();
+        }
+      )
+    );
+    tools.appendChild(
+      buildButton(
+        "transcribe-reset",
+        "ss-btn",
+        clearIconSvg() + "<span>Clear</span>",
+        function () {
+          window.SightSingingTranscriptionReset();
+        }
+      )
+    );
+    ui.appendChild(tools);
+
+    var statusRow = document.createElement("div");
+    statusRow.className = "ss-status-row";
+    var beatbar = document.createElement("div");
+    beatbar.className = "ss-beatbar";
+    beatbar.id = "transcribe-beatbar";
+    for (var b = 0; b < 4; b++) {
+      var beat = document.createElement("div");
+      beat.className = "ss-beat";
+      var fill = document.createElement("div");
+      fill.className = "ss-beat-fill";
+      beat.appendChild(fill);
+      beatbar.appendChild(beat);
+    }
+    statusRow.appendChild(beatbar);
+    var status = document.createElement("div");
+    status.className = "ss-status";
+    status.id = "transcribe-status";
+    statusRow.appendChild(status);
+    ui.appendChild(statusRow);
+  }
+
+  function updateToolbar() {
+    var tools = ["note", "rest", "erase"];
+    for (var i = 0; i < tools.length; i++) {
+      var toolBtn = document.getElementById("transcribe-tool-" + tools[i]);
+      if (toolBtn) {
+        toolBtn.className =
+          "ss-btn" + (state.mode === tools[i] ? " ss-tool-active" : "");
+      }
+    }
+
+    var durbar = document.getElementById("transcribe-durbar");
+    if (durbar) {
+      durbar.className =
+        "ss-toolbar ss-durbar" +
+        (state.mode === "erase" ? " ss-durbar-disabled" : "");
+    }
+
+    var durations = ["8", "q", "h", "w"];
+    for (var j = 0; j < durations.length; j++) {
+      var duration = durations[j];
+      var btn = document.getElementById("transcribe-duration-" + duration);
+      if (!btn) continue;
+      btn.className =
+        "ss-btn ss-btn-duration" +
+        (state.duration === duration ? " ss-tool-active" : "");
+      var icon =
+        state.mode === "rest" ? restIconSvg(duration) : noteIconSvg(duration);
+      btn.innerHTML =
+        icon +
+        '<span class="ss-btn-caption">' +
+        DURATION_LABELS[duration] +
+        "</span>";
+    }
+
+    var undoBtn = document.getElementById("transcribe-undo");
+    if (undoBtn) undoBtn.disabled = !state.history.length;
+    var resetBtn = document.getElementById("transcribe-reset");
+    if (resetBtn) resetBtn.disabled = !state.events.length;
+  }
+
+  /* ---- status + beat bar --------------------------------------------------------- */
+
+  function beatsLabel(units) {
+    var whole = Math.floor(units / 2);
+    var half = units % 2 === 1;
+    if (whole === 0 && half) return "½";
+    return String(whole) + (half ? "½" : "");
+  }
+
+  function updateStatus() {
+    var el = document.getElementById("transcribe-status");
+    var used = usedUnits();
+
+    if (el) {
+      if (!state.events.length) {
+        el.innerHTML = "Listen, then tap the staff to enter what you hear.";
+      } else if (used >= BAR_UNITS) {
+        el.innerHTML =
+          "<strong>Bar complete.</strong> Check it against the melody, then show the answer.";
       } else {
-        hit.disabled = true;
+        el.innerHTML =
+          "<strong>" +
+          beatsLabel(used) +
+          " of 4 beats</strong> filled · " +
+          DURATION_LABELS[state.duration].toLowerCase() +
+          (state.mode === "rest" ? " rest" : "") +
+          " selected";
       }
-      editorEl.appendChild(hit);
     }
-  }
 
-  function renderPlacedEvents(editorEl, metrics) {
-    for (var eventIndex = 0; eventIndex < state.events.length; eventIndex++) {
-      var event = state.events[eventIndex];
-      var units = eventUnits(event);
-      var startX = unitX(metrics, event.startUnit);
-      var width = metrics.unitWidth * units;
-      var centerX = startX + Math.min(metrics.unitWidth, width) / 2;
-
-      var span = document.createElement("div");
-      span.className =
-        "ss-transcribe-event-span" +
-        (event.kind === "rest" ? " ss-transcribe-event-rest" : "");
-      span.style.left = startX + 6 + "px";
-      span.style.width = Math.max(16, width - 12) + "px";
-      editorEl.appendChild(span);
-
-      var badge = document.createElement("div");
-      badge.className = "ss-transcribe-duration-tag";
-      badge.style.left = startX + width / 2 + "px";
-      badge.textContent = event.duration;
-      editorEl.appendChild(badge);
-
-      if (event.kind === "rest") {
-        var rest = document.createElement("div");
-        rest.className =
-          "ss-transcribe-rest ss-transcribe-rest-" + event.duration;
-        rest.style.left = startX + width / 2 + "px";
-        editorEl.appendChild(rest);
-        continue;
-      }
-
-      var noteEl = document.createElement("div");
-      noteEl.className =
-        "ss-transcribe-note ss-transcribe-note-" + event.duration;
-      noteEl.style.left = centerX + "px";
-      noteEl.style.top = PITCH_Y[event.pitch] + "px";
-      editorEl.appendChild(noteEl);
-
-      if (event.pitch === "C4") {
-        var ledger = document.createElement("div");
-        ledger.className = "ss-transcribe-ledger";
-        ledger.style.left = centerX - 12 + "px";
-        ledger.style.top = PITCH_Y[event.pitch] + "px";
-        ledger.style.width = "24px";
-        ledger.style.height = "1px";
-        editorEl.appendChild(ledger);
+    var beatbar = document.getElementById("transcribe-beatbar");
+    if (beatbar) {
+      beatbar.className =
+        "ss-beatbar" + (used >= BAR_UNITS ? " ss-beatbar-full" : "");
+      var occupied = occupiedUnits(state.events);
+      var fills = beatbar.getElementsByClassName("ss-beat-fill");
+      for (var b = 0; b < fills.length && b < 4; b++) {
+        var count = (occupied[b * 2] ? 1 : 0) + (occupied[b * 2 + 1] ? 1 : 0);
+        fills[b].style.width = count * 50 + "%";
       }
     }
   }
 
-  function renderEditor() {
-    var editorEl = document.getElementById("transcribe-editor");
-    if (!editorEl) return;
+  /* ---- VexFlow editor rendering ---------------------------------------------------- */
 
-    var readonly = isBack();
-    editorEl.innerHTML = "";
-    editorEl.className =
-      "ss-transcribe-editor" + (readonly ? " ss-readonly" : "");
-
-    var metrics = editorMetrics(editorEl);
-
-    for (var i = 0; i < STAFF_LINES.length; i++) {
-      var line = document.createElement("div");
-      line.className = "ss-transcribe-staff-line";
-      line.style.top = STAFF_LINES[i] + "px";
-      editorEl.appendChild(line);
-    }
-
-    var leftBar = document.createElement("div");
-    leftBar.className = "ss-transcribe-bar-line";
-    leftBar.style.left = BAR_LEFT + "px";
-    editorEl.appendChild(leftBar);
-
-    var rightBar = document.createElement("div");
-    rightBar.className = "ss-transcribe-bar-line";
-    rightBar.style.left = metrics.width - BAR_RIGHT + "px";
-    editorEl.appendChild(rightBar);
-
-    for (var unit = 1; unit < BAR_UNITS; unit++) {
-      var guide = document.createElement("div");
-      guide.className =
-        "ss-transcribe-slot-guide" +
-        (unit % 2 === 0 ? " ss-transcribe-slot-guide-beat" : "");
-      guide.style.left = unitX(metrics, unit) + "px";
-      editorEl.appendChild(guide);
-    }
-
-    for (var beat = 0; beat < 4; beat++) {
-      var label = document.createElement("div");
-      label.className = "ss-transcribe-slot-index";
-      label.style.left = quarterCenterX(metrics, beat) + "px";
-      label.textContent = String(beat + 1);
-      editorEl.appendChild(label);
-    }
-
-    renderFreeIntervals(editorEl, metrics);
-    renderPlacementZones(editorEl, metrics, readonly);
-    renderPlacedEvents(editorEl, metrics);
+  function stageEls() {
+    var editor = document.getElementById("transcribe-editor");
+    if (!editor) return null;
+    var stage = editor.querySelector(".ss-editor-stage");
+    if (!stage) return null;
+    return {
+      editor: editor,
+      stage: stage,
+      score: stage.querySelector(".ss-editor-score"),
+      overlay: stage.querySelector(".ss-editor-overlay"),
+      ghostLabel: stage.querySelector(".ss-ghost-label"),
+    };
   }
 
-  function updateFrontStatus(data) {
-    if (isBack()) return;
-    if (!supportedData(data)) {
-      setStatus(
-        "This prototype currently supports one treble-clef bar in 4/4 using eighth, quarter, half, and whole values."
+  function buildStage(readonly) {
+    var editor = document.getElementById("transcribe-editor");
+    if (!editor) return null;
+    editor.innerHTML = "";
+    editor.className = readonly ? "ss-editor-readonly" : "";
+
+    var stage = document.createElement("div");
+    stage.className = "ss-editor-stage";
+
+    var score = document.createElement("div");
+    score.className = "ss-editor-score";
+    stage.appendChild(score);
+
+    var overlay = document.createElementNS(SVG_NS, "svg");
+    overlay.setAttribute("class", "ss-editor-overlay");
+    stage.appendChild(overlay);
+
+    var ghostLabel = document.createElement("div");
+    ghostLabel.className = "ss-ghost-label";
+    ghostLabel.style.display = "none";
+    stage.appendChild(ghostLabel);
+
+    editor.appendChild(stage);
+    if (!readonly) attachPointerHandlers(overlay);
+    return stageEls();
+  }
+
+  /* Build the display list: placed events plus faint placeholders. */
+  function displaySlots() {
+    var slots = [];
+    for (var i = 0; i < state.events.length; i++) {
+      slots.push({
+        kind: "event",
+        eventIndex: i,
+        startUnit: state.events[i].startUnit,
+        units: eventUnits(state.events[i]),
+        event: state.events[i],
+      });
+    }
+    var chunks = freeChunks();
+    for (var j = 0; j < chunks.length; j++) {
+      slots.push({
+        kind: "free",
+        startUnit: chunks[j].startUnit,
+        units: durationUnits(chunks[j].duration),
+        duration: chunks[j].duration,
+      });
+    }
+    slots.sort(function (a, b) {
+      return a.startUnit - b.startUnit;
+    });
+    return slots;
+  }
+
+  function renderScore() {
+    var els = stageEls();
+    if (!els || !els.score) return;
+    var VF = window.Vex && window.Vex.Flow;
+    if (!VF) {
+      els.score.innerHTML =
+        '<div class="ss-editor-message">Notation engine failed to load.</div>';
+      geo = null;
+      return;
+    }
+
+    var measured = els.editor.clientWidth || 520;
+    var width = Math.max(260, Math.min(560, measured));
+    var height = 144;
+    var ink = themeVar("--ss-ink", "#221f1c");
+    var faint = themeVar("--ss-ink-faint", "#aca69d");
+
+    els.stage.style.width = width + "px";
+    els.score.innerHTML = "";
+
+    var renderer = new VF.Renderer(els.score, VF.Renderer.Backends.SVG);
+    renderer.resize(width, height);
+    var ctx = renderer.getContext();
+    ctx.setFillStyle(ink);
+    ctx.setStrokeStyle(ink);
+
+    var stave = new VF.Stave(4, 24, width - 10);
+    stave.addClef("treble").addTimeSignature("4/4");
+    stave.setStyle({
+      fillStyle: themeVar("--ss-ink-soft", "#6f6a63"),
+      strokeStyle: themeVar("--ss-ink-soft", "#6f6a63"),
+    });
+    stave.setContext(ctx).draw();
+
+    var slots = displaySlots();
+    var notes = [];
+    var faintStyle = { fillStyle: faint, strokeStyle: faint };
+
+    for (var i = 0; i < slots.length; i++) {
+      var slot = slots[i];
+      var note;
+      if (slot.kind === "event") {
+        if (slot.event.kind === "rest") {
+          note = new VF.StaveNote({
+            clef: "treble",
+            keys: ["b/4"],
+            duration: slot.event.duration + "r",
+          });
+        } else {
+          note = new VF.StaveNote({
+            clef: "treble",
+            keys: [slot.event.pitch[0].toLowerCase() + "/" + slot.event.pitch[2]],
+            duration: slot.event.duration,
+          });
+        }
+      } else {
+        note = new VF.StaveNote({
+          clef: "treble",
+          keys: ["b/4"],
+          duration: slot.duration + "r",
+          align_center: slot.duration === "w" && !state.events.length,
+        });
+        note.setStyle(faintStyle);
+      }
+      slot.note = note;
+      notes.push(note);
+    }
+
+    /* Beam adjacent placed eighth notes inside the same beat. */
+    var beams = [];
+    var group = [];
+    function flushBeam() {
+      if (group.length >= 2) {
+        try {
+          beams.push(new VF.Beam(group));
+        } catch (e) {}
+      }
+      group = [];
+    }
+    for (var s = 0; s < slots.length; s++) {
+      var sl = slots[s];
+      var isPlacedEighthNote =
+        sl.kind === "event" &&
+        sl.event.kind === "note" &&
+        sl.event.duration === "8";
+      if (isPlacedEighthNote) {
+        if (sl.startUnit % 2 === 0) flushBeam();
+        group.push(sl.note);
+        if ((sl.startUnit + 1) % 2 === 0) flushBeam();
+      } else {
+        flushBeam();
+      }
+    }
+    flushBeam();
+
+    try {
+      VF.Formatter.FormatAndDraw(ctx, stave, notes);
+      for (var b = 0; b < beams.length; b++) {
+        beams[b].setContext(ctx).draw();
+      }
+    } catch (err) {
+      els.score.innerHTML =
+        '<div class="ss-editor-message">Could not render this bar.</div>';
+      geo = null;
+      return;
+    }
+
+    /* ---- capture geometry for the input overlay ---- */
+    var anchors = [];
+    var endX = stave.getX() + stave.getWidth() - 14;
+    if (!state.events.length) {
+      /* Empty bar shows one centered whole rest; use a uniform unit grid. */
+      anchors.push({ unit: 0, x: stave.getNoteStartX() + 14 });
+    } else {
+      for (var a = 0; a < slots.length; a++) {
+        anchors.push({
+          unit: slots[a].startUnit,
+          x: slots[a].note.getAbsoluteX(),
+        });
+      }
+    }
+    anchors.push({ unit: BAR_UNITS, x: endX });
+
+    var yBottom = stave.getYForLine(4); // E4 line
+    var halfStep = (stave.getYForLine(4) - stave.getYForLine(3)) / 2;
+
+    geo = {
+      width: width,
+      height: height,
+      anchors: anchors,
+      slots: slots,
+      staveTopY: stave.getYForLine(0),
+      staveBottomY: yBottom,
+      yBottom: yBottom,
+      halfStep: halfStep,
+      leftX: anchors[0].x - 14,
+      rightX: stave.getX() + stave.getWidth() - 6,
+    };
+
+    var overlay = els.overlay;
+    overlay.setAttribute("width", String(width));
+    overlay.setAttribute("height", String(height));
+    overlay.setAttribute("viewBox", "0 0 " + width + " " + height);
+  }
+
+  function unitToX(unit) {
+    if (!geo) return 0;
+    var anchors = geo.anchors;
+    if (unit <= anchors[0].unit) return anchors[0].x;
+    for (var i = 0; i < anchors.length - 1; i++) {
+      var a = anchors[i];
+      var b = anchors[i + 1];
+      if (unit >= a.unit && unit <= b.unit) {
+        if (b.unit === a.unit) return a.x;
+        return a.x + ((unit - a.unit) / (b.unit - a.unit)) * (b.x - a.x);
+      }
+    }
+    return anchors[anchors.length - 1].x;
+  }
+
+  function xToUnit(x) {
+    if (!geo) return 0;
+    var anchors = geo.anchors;
+    if (x <= anchors[0].x) return anchors[0].unit;
+    for (var i = 0; i < anchors.length - 1; i++) {
+      var a = anchors[i];
+      var b = anchors[i + 1];
+      if (x >= a.x && x <= b.x) {
+        if (b.x === a.x) return a.unit;
+        return a.unit + ((x - a.x) / (b.x - a.x)) * (b.unit - a.unit);
+      }
+    }
+    return BAR_UNITS;
+  }
+
+  function yForPitchIndex(index) {
+    return geo.yBottom - (index - 2) * geo.halfStep;
+  }
+
+  function pitchIndexFromY(y) {
+    var index = Math.round(2 + (geo.yBottom - y) / geo.halfStep);
+    if (index < 0) return 0;
+    if (index >= PITCHES.length) return PITCHES.length - 1;
+    return index;
+  }
+
+  /* ---- ghost computation ---------------------------------------------------------- */
+
+  function computeGhost(x, y) {
+    if (!geo) return null;
+    if (x < geo.leftX - 8 || x > geo.rightX + 8) return null;
+
+    if (state.mode === "erase") {
+      var unit = Math.floor(xToUnit(x));
+      var idx = eventIndexAtUnit(unit);
+      if (idx < 0) {
+        return { type: "erase-miss" };
+      }
+      return { type: "erase", eventIndex: idx };
+    }
+
+    var starts = validStarts();
+    if (!starts.length) {
+      return { type: "full" };
+    }
+
+    var units = durationUnits(state.duration);
+    var pointerUnit = xToUnit(x);
+    var best = starts[0];
+    var bestDist = Infinity;
+    for (var i = 0; i < starts.length; i++) {
+      var center = starts[i] + units / 2;
+      var dist = Math.abs(center - pointerUnit);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = starts[i];
+      }
+    }
+
+    var ghost = {
+      type: state.mode === "rest" ? "rest" : "note",
+      startUnit: best,
+      units: units,
+    };
+    if (ghost.type === "note") {
+      ghost.pitchIndex = pitchIndexFromY(y);
+      ghost.pitch = PITCHES[ghost.pitchIndex];
+    }
+    return ghost;
+  }
+
+  /* ---- overlay rendering ------------------------------------------------------------ */
+
+  function clearOverlay() {
+    var els = stageEls();
+    if (!els) return;
+    while (els.overlay.firstChild) {
+      els.overlay.removeChild(els.overlay.firstChild);
+    }
+    if (els.ghostLabel) els.ghostLabel.style.display = "none";
+  }
+
+  function showGhostLabel(text, x, y, variant) {
+    var els = stageEls();
+    if (!els || !els.ghostLabel) return;
+    var label = els.ghostLabel;
+    label.textContent = text;
+    label.className =
+      "ss-ghost-label" + (variant ? " ss-ghost-label-" + variant : "");
+    label.style.display = "block";
+    var half = (label.offsetWidth || 96) / 2 + 4;
+    var maxX = geo ? Math.max(half, geo.width - half) : x;
+    var clamped = Math.max(half, Math.min(maxX, x));
+    label.style.left = clamped + "px";
+    label.style.top = Math.max(4, y) + "px";
+  }
+
+  function renderOverlay() {
+    clearOverlay();
+    if (!hover || !geo) return;
+    var els = stageEls();
+    if (!els) return;
+    var overlay = els.overlay;
+    var accent = themeVar("--ss-accent", "#4f46e5");
+    var bad = themeVar("--ss-bad", "#b91c1c");
+    var ghost = hover.ghost;
+    if (!ghost) return;
+
+    if (ghost.type === "full") {
+      showGhostLabel(
+        "Bar full — erase or undo first",
+        geo.width / 2,
+        geo.staveTopY - 12,
+        "invalid"
       );
       return;
     }
 
-    var validCount = 0;
-    var zones = placementZones();
-    for (var i = 0; i < zones.length; i++) {
-      if (zones[i].valid) validCount += 1;
+    if (ghost.type === "erase-miss") {
+      showGhostLabel(
+        "Tap a note or rest to remove it",
+        geo.width / 2,
+        geo.staveTopY - 12,
+        "erase"
+      );
+      return;
     }
 
-    var modeText =
-      state.mode === "erase"
-        ? "erase"
-        : DURATION_LABELS[state.duration] +
-          " " +
-          (state.mode === "rest" ? "rest" : "note");
+    if (ghost.type === "erase") {
+      var target = state.events[ghost.eventIndex];
+      if (!target) return;
+      var ex0 = unitToX(target.startUnit) - 12;
+      var ex1 = unitToX(eventEndUnit(target)) - 6;
+      svgEl(
+        "rect",
+        {
+          x: ex0,
+          y: geo.staveTopY - 18,
+          width: Math.max(24, ex1 - ex0),
+          height: geo.staveBottomY - geo.staveTopY + 44,
+          rx: 9,
+          fill: bad,
+          "fill-opacity": 0.13,
+          stroke: bad,
+          "stroke-opacity": 0.5,
+          "stroke-width": 1.4,
+          "stroke-dasharray": "4 3",
+        },
+        overlay
+      );
+      var labelText =
+        target.kind === "rest"
+          ? "Remove " + DURATION_LABELS[target.duration].toLowerCase() + " rest"
+          : "Remove " + target.pitch;
+      showGhostLabel(labelText, (ex0 + ex1) / 2, geo.staveTopY - 24, "erase");
+      return;
+    }
 
-    setStatus(
-      "used " +
-        (usedUnits() / 2).toFixed(1).replace(".0", "") +
-        "/4 beats. Selected: " +
-        modeText +
-        ". Valid areas: " +
-        validCount +
-        ".",
-      "Bar"
+    /* note / rest placement ghost */
+    var x0 = unitToX(ghost.startUnit);
+    var x1 = unitToX(ghost.startUnit + ghost.units);
+    var spanX = x0 - 12;
+    var spanW = Math.max(26, x1 - x0 - 2);
+
+    svgEl(
+      "rect",
+      {
+        x: spanX,
+        y: geo.staveTopY - 18,
+        width: spanW,
+        height: geo.staveBottomY - geo.staveTopY + 44,
+        rx: 9,
+        fill: accent,
+        "fill-opacity": 0.1,
+        stroke: accent,
+        "stroke-opacity": 0.45,
+        "stroke-width": 1.4,
+        "stroke-dasharray": "4 3",
+      },
+      overlay
+    );
+
+    var beatText = DURATION_LABELS[state.duration].toLowerCase();
+
+    if (ghost.type === "rest") {
+      var restY =
+        ghost.units >= 8 ? yForPitchIndex(6) + 1.5 : yForPitchIndex(6) - 6.5;
+      svgEl(
+        "rect",
+        {
+          x: x0 - 2,
+          y: restY,
+          width: 15,
+          height: 5.5,
+          rx: 1.5,
+          fill: accent,
+          "fill-opacity": 0.85,
+        },
+        overlay
+      );
+      showGhostLabel(
+        DURATION_LABELS[state.duration] + " rest",
+        (x0 + x1) / 2 - 6,
+        geo.staveTopY - 24,
+        null
+      );
+      return;
+    }
+
+    var noteY = yForPitchIndex(ghost.pitchIndex);
+    var headX = x0 + 2;
+
+    /* ledger line for C4 */
+    if (ghost.pitchIndex === 0) {
+      svgEl(
+        "rect",
+        {
+          x: headX - 10,
+          y: noteY - 0.9,
+          width: 20,
+          height: 1.8,
+          fill: accent,
+          "fill-opacity": 0.9,
+        },
+        overlay
+      );
+    }
+
+    var head = svgEl(
+      "ellipse",
+      {
+        cx: headX,
+        cy: noteY,
+        rx: 6.1,
+        ry: 4.5,
+        fill: accent,
+        "fill-opacity": 0.85,
+        transform: "rotate(-16 " + headX + " " + noteY + ")",
+      },
+      overlay
+    );
+    if (state.duration === "h" || state.duration === "w") {
+      head.setAttribute("fill-opacity", "0.28");
+      head.setAttribute("stroke", accent);
+      head.setAttribute("stroke-width", "2.4");
+    }
+
+    if (state.duration !== "w") {
+      var stemUp = ghost.pitchIndex < 6;
+      svgEl(
+        "rect",
+        {
+          x: stemUp ? headX + 4.6 : headX - 6.2,
+          y: stemUp ? noteY - 32 : noteY,
+          width: 1.7,
+          height: 32,
+          rx: 0.8,
+          fill: accent,
+          "fill-opacity": 0.85,
+        },
+        overlay
+      );
+      if (state.duration === "8") {
+        var fx = stemUp ? headX + 6.3 : headX - 4.5;
+        var fy = stemUp ? noteY - 32 : noteY + 32;
+        var dir = stemUp ? 1 : -1;
+        svgEl(
+          "path",
+          {
+            d:
+              "M " + fx + " " + fy +
+              " C " + (fx + 7) + " " + (fy + 5 * dir) +
+              ", " + (fx + 8) + " " + (fy + 12 * dir) +
+              ", " + (fx + 4) + " " + (fy + 18 * dir) +
+              " C " + (fx + 6.5) + " " + (fy + 10 * dir) +
+              ", " + (fx + 4) + " " + (fy + 7 * dir) +
+              ", " + fx + " " + (fy + 6 * dir) + " Z",
+            fill: accent,
+            "fill-opacity": 0.85,
+          },
+          overlay
+        );
+      }
+    }
+
+    showGhostLabel(
+      ghost.pitch + " · " + beatText,
+      headX,
+      geo.staveTopY - 24,
+      null
     );
   }
 
-  function compareEvents(a, b) {
-    return (
-      a.kind === b.kind &&
-      a.startUnit === b.startUnit &&
-      a.duration === b.duration &&
-      (a.kind === "rest" || a.pitch === b.pitch)
-    );
+  /* ---- pointer handling ---------------------------------------------------------------- */
+
+  function pointerPos(event, overlay) {
+    var rect = overlay.getBoundingClientRect();
+    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  }
+
+  function attachPointerHandlers(overlay) {
+    var active = false;
+
+    function update(event) {
+      var pos = pointerPos(event, overlay);
+      hover = {
+        x: pos.x,
+        y: pos.y,
+        ghost: computeGhost(pos.x, pos.y),
+      };
+      renderOverlay();
+    }
+
+    overlay.addEventListener("pointermove", update);
+    overlay.addEventListener("pointerdown", function (event) {
+      active = true;
+      if (overlay.setPointerCapture) {
+        try {
+          overlay.setPointerCapture(event.pointerId);
+        } catch (e) {}
+      }
+      update(event);
+      event.preventDefault();
+    });
+    overlay.addEventListener("pointerup", function (event) {
+      if (!active) return;
+      active = false;
+      update(event);
+      var pos = pointerPos(event, overlay);
+      var inside =
+        pos.x >= -6 &&
+        pos.x <= (geo ? geo.width + 6 : 9999) &&
+        pos.y >= -6 &&
+        pos.y <= (geo ? geo.height + 6 : 9999);
+      if (inside && hover && hover.ghost) {
+        commitGhost(hover.ghost);
+      }
+      hover = null;
+      renderOverlay();
+    });
+    overlay.addEventListener("pointercancel", function () {
+      active = false;
+      hover = null;
+      renderOverlay();
+    });
+    overlay.addEventListener("pointerleave", function () {
+      if (active) return;
+      hover = null;
+      renderOverlay();
+    });
+  }
+
+  function commitGhost(ghost) {
+    if (ghost.type === "note" || ghost.type === "rest") {
+      pushHistory();
+      state.events.push(
+        ghost.type === "rest"
+          ? {
+              kind: "rest",
+              duration: state.duration,
+              startUnit: ghost.startUnit,
+            }
+          : {
+              kind: "note",
+              pitch: ghost.pitch,
+              duration: state.duration,
+              startUnit: ghost.startUnit,
+            }
+      );
+      sortEvents();
+      saveEvents();
+      renderAll();
+      return;
+    }
+    if (ghost.type === "erase") {
+      pushHistory();
+      state.events.splice(ghost.eventIndex, 1);
+      saveEvents();
+      renderAll();
+    }
+  }
+
+  function renderAll() {
+    renderScore();
+    renderOverlay();
+    updateToolbar();
+    updateStatus();
+  }
+
+  /* ---- review (back side) ----------------------------------------------------------------- */
+
+  function verdictIcon(kind) {
+    if (kind === "good") {
+      return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 C 6.5 2, 2 6.5, 2 12 C 2 17.5, 6.5 22, 12 22 C 17.5 22, 22 17.5, 22 12 C 22 6.5, 17.5 2, 12 2 Z M 10.4 16.4 L 5.9 11.9 L 7.6 10.2 L 10.4 13 L 16.4 7 L 18.1 8.7 Z"/></svg>';
+    }
+    if (kind === "none") {
+      return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 C 6.5 2, 2 6.5, 2 12 C 2 17.5, 6.5 22, 12 22 C 17.5 22, 22 17.5, 22 12 C 22 6.5, 17.5 2, 12 2 Z M 11 6 L 13 6 L 13 13 L 11 13 Z M 11 15 L 13 15 L 13 17 L 11 17 Z"/></svg>';
+    }
+    return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 C 6.5 2, 2 6.5, 2 12 C 2 17.5, 6.5 22, 12 22 C 17.5 22, 22 17.5, 22 12 C 22 6.5, 17.5 2, 12 2 Z M 7 11 L 17 11 L 17 13 L 7 13 Z"/></svg>';
   }
 
   function renderSummary(data) {
     var resultEl = document.getElementById("transcribe-result");
     var targetEl = document.getElementById("transcribe-target");
     var userEl = document.getElementById("transcribe-user");
-    if (!resultEl || !targetEl || !userEl) return;
+    var userBlock = document.getElementById("transcribe-user-block");
+    var legendEl = document.getElementById("transcribe-legend");
+    if (!resultEl || !targetEl) return;
 
     if (!supportedData(data)) {
-      resultEl.textContent =
-        "This melody is outside the current transcription prototype scope.";
+      resultEl.className = "ss-verdict ss-verdict-none";
+      resultEl.innerHTML =
+        verdictIcon("none") +
+        "<span>This melody is outside the transcription exercise scope.</span>";
       return;
     }
 
     var targetEvents = targetEventsFromData(data);
-    if (window.SightSingingDrawStaff) {
-      window.SightSingingDrawStaff(targetEl, data);
-      window.SightSingingDrawStaff(userEl, buildAnswerData());
+    var good = themeVar("--ss-good", "#16803c");
+    var bad = themeVar("--ss-bad", "#b91c1c");
+
+    var targetByStart = {};
+    for (var t = 0; t < targetEvents.length; t++) {
+      targetByStart[targetEvents[t].startUnit] = targetEvents[t];
     }
 
+    var styles = [];
     var correct = 0;
-    var count = Math.max(targetEvents.length, state.events.length);
-    for (var i = 0; i < Math.min(targetEvents.length, state.events.length); i++) {
-      if (compareEvents(state.events[i], targetEvents[i])) {
-        correct += 1;
+    for (var i = 0; i < state.events.length; i++) {
+      var match = eventsMatch(
+        state.events[i],
+        targetByStart[state.events[i].startUnit]
+      );
+      if (match) correct += 1;
+      styles.push(
+        match
+          ? { fillStyle: good, strokeStyle: good }
+          : { fillStyle: bad, strokeStyle: bad }
+      );
+    }
+
+    if (window.SightSingingDrawStaff) {
+      window.SightSingingDrawStaff(targetEl, data);
+      if (state.events.length && userEl) {
+        window.SightSingingDrawStaff(userEl, buildAnswerData(), {
+          styles: styles,
+        });
       }
     }
 
+    var total = targetEvents.length;
+    var perfect =
+      correct === total && state.events.length === total && total > 0;
+
     if (!state.events.length) {
+      resultEl.className = "ss-verdict ss-verdict-none";
       resultEl.innerHTML =
-        "<strong>No answer entered.</strong> The target melody is shown below.";
+        verdictIcon("none") +
+        "<span>No answer was entered — study the target below.</span>";
+      if (userBlock) userBlock.style.display = "none";
+      if (legendEl) legendEl.style.display = "none";
       return;
     }
 
-    resultEl.innerHTML =
-      "<strong>" +
-      correct +
-      "/" +
-      count +
-      " events correct.</strong> Review your transcription against the target below.";
-  }
-
-  function placeEvent(startUnit, pitch) {
-    var occupied = occupiedUnits();
-    if (!durationFitsAt(startUnit, state.duration, occupied)) {
-      setStatus("That value does not fit in the selected interval.", "Does not fit");
-      return;
-    }
-
-    state.events.push(
-      state.mode === "rest"
-        ? {
-            kind: "rest",
-            duration: state.duration,
-            startUnit: startUnit,
-          }
-        : {
-            kind: "note",
-            pitch: pitch,
-            duration: state.duration,
-            startUnit: startUnit,
-          }
-    );
-    sortEvents();
-    saveEvents();
-  }
-
-  function eraseAtUnit(unit) {
-    var idx = eventAtUnit(unit);
-    if (idx >= 0) {
-      state.events.splice(idx, 1);
-      saveEvents();
-    }
-  }
-
-  function handleZoneClick(event) {
-    if (isBack()) return;
-    var startUnit = Number(event.currentTarget.dataset.startUnit || 0);
-    if (state.mode === "erase") {
-      eraseAtUnit(startUnit);
-      renderEditor();
-      updateToolbar();
-      updateFrontStatus(parseData());
-      return;
-    }
-
-    var editorEl = document.getElementById("transcribe-editor");
-    if (!editorEl) return;
-    var rect = editorEl.getBoundingClientRect();
-    var y = event.clientY - rect.top;
-
-    if (state.mode === "rest") {
-      placeEvent(startUnit, null);
+    if (perfect) {
+      resultEl.className = "ss-verdict ss-verdict-good";
+      resultEl.innerHTML =
+        verdictIcon("good") +
+        "<span>Perfect — every pitch and rhythm matches.</span>";
+      if (legendEl) legendEl.style.display = "none";
     } else {
-      placeEvent(startUnit, nearestPitch(y));
+      resultEl.className = "ss-verdict ss-verdict-partial";
+      resultEl.innerHTML =
+        verdictIcon("partial") +
+        "<span>" +
+        correct +
+        " of " +
+        total +
+        " events match — differences are marked red.</span>";
+      if (legendEl) legendEl.style.display = "";
     }
-
-    renderEditor();
-    updateToolbar();
-    updateFrontStatus(parseData());
   }
 
-  function init() {
-    var editorEl = document.getElementById("transcribe-editor");
-    if (!editorEl) return;
+  /* ---- init ---------------------------------------------------------------------------------- */
+
+  function initFront() {
+    var editor = document.getElementById("transcribe-editor");
+    if (!editor) return;
 
     var data = parseData();
-    if (!isBack()) {
-      clearSavedEvents();
-      state.events = [];
-    } else {
-      state.events = loadSavedEvents();
-    }
-
+    clearSavedEvents();
+    state.events = [];
+    state.history = [];
     state.mode = "note";
-    state.duration = "w";
+    state.duration = "q";
 
-    var toolButtons = document.querySelectorAll("[data-transcribe-tool]");
-    for (var i = 0; i < toolButtons.length; i++) {
-      toolButtons[i].addEventListener("click", function (event) {
-        event.preventDefault();
-        window.SightSingingTranscriptionSetTool(
-          event.currentTarget.getAttribute("data-transcribe-tool")
-        );
-      });
+    if (!supportedData(data)) {
+      editor.innerHTML =
+        '<div class="ss-editor-message">This melody is outside the current transcription exercise scope.</div>';
+      return;
     }
 
-    var durationButtons = document.querySelectorAll("[data-transcribe-duration]");
-    for (var j = 0; j < durationButtons.length; j++) {
-      durationButtons[j].addEventListener("click", function (event) {
-        event.preventDefault();
-        window.SightSingingTranscriptionSetDuration(
-          event.currentTarget.getAttribute("data-transcribe-duration")
-        );
-      });
-    }
-
-    var resetButton = document.getElementById("transcribe-reset");
-    if (resetButton) {
-      resetButton.addEventListener("click", function (event) {
-        event.preventDefault();
-        window.SightSingingTranscriptionReset();
-      });
-    }
-
-    updateToolbar();
-    renderEditor();
-    updateFrontStatus(data);
+    buildStage(false);
+    buildUI();
+    renderAll();
   }
+
+  var resizeTimer = null;
+  window.addEventListener("resize", function () {
+    if (isBack()) return;
+    if (!document.getElementById("transcribe-editor")) return;
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () {
+      if (stageEls()) renderAll();
+    }, 150);
+  });
+
+  function init() {
+    if (isBack()) return;
+    initFront();
+  }
+
+  /* ---- public API ------------------------------------------------------------------------------ */
 
   window.SightSingingTranscriptionSetTool = function (tool) {
     state.mode = tool === "erase" ? "erase" : tool === "rest" ? "rest" : "note";
-    updateToolbar();
-    renderEditor();
-    updateFrontStatus(parseData());
+    hover = null;
+    renderAll();
     return false;
   };
 
   window.SightSingingTranscriptionSetDuration = function (duration) {
     if (durationUnits(duration)) {
       state.duration = String(duration);
-      updateToolbar();
-      renderEditor();
-      updateFrontStatus(parseData());
+      if (state.mode === "erase") state.mode = "note";
+      hover = null;
+      renderAll();
+    }
+    return false;
+  };
+
+  window.SightSingingTranscriptionUndo = function () {
+    if (state.history.length) {
+      state.events = state.history.pop();
+      saveEvents();
+      hover = null;
+      renderAll();
     }
     return false;
   };
 
   window.SightSingingTranscriptionReset = function () {
-    state.events = [];
-    saveEvents();
-    renderEditor();
-    updateToolbar();
-    updateFrontStatus(parseData());
+    if (state.events.length) {
+      pushHistory();
+      state.events = [];
+      saveEvents();
+      hover = null;
+      renderAll();
+    }
+    return false;
+  };
+
+  window.SightSingingTranscriptionRefresh = function () {
+    if (!isBack() && stageEls()) renderAll();
     return false;
   };
 
   window.SightSingingTranscriptionReview = function () {
     state.events = loadSavedEvents();
     renderSummary(parseData());
+  };
+
+  /* Test/debug hooks: stable coordinates for Playwright and agents. */
+  window.SightSingingTranscriptionDebug = {
+    getState: function () {
+      return {
+        mode: state.mode,
+        duration: state.duration,
+        events: state.events.map(cloneEvent),
+        historyDepth: state.history.length,
+      };
+    },
+    validStarts: validStarts,
+    clientPoint: function (unit, pitch) {
+      var els = stageEls();
+      if (!els || !geo) return null;
+      var rect = els.overlay.getBoundingClientRect();
+      var x = unitToX(Number(unit)) + 3;
+      var index = pitch ? PITCHES.indexOf(String(pitch)) : 4;
+      if (index < 0) index = 4;
+      return {
+        x: rect.left + x,
+        y: rect.top + yForPitchIndex(index),
+      };
+    },
   };
 
   if (document.readyState === "loading") {

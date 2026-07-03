@@ -19,7 +19,11 @@ Current work also includes fixed-audio curriculum planning, rhythm curriculum no
 - [`RHYTHM_CURRICULUM.md`](RHYTHM_CURRICULUM.md): rhythm-card curriculum notes
 - [`TRANSCRIPTION_MINIGAME_DESIGN.md`](TRANSCRIPTION_MINIGAME_DESIGN.md): transcription interaction design
 - [`scripts/build_deck.py`](scripts/build_deck.py): main APKG builder
-- [`tests/transcription-harness.spec.js`](tests/transcription-harness.spec.js): Playwright smoke test for the transcription harness
+- [`assets/card_styles.css`](assets/card_styles.css): single source of truth for card CSS (design tokens, Anki night-mode support); embedded into the note type at build time and linked by the debug harnesses
+- [`assets/_renderer.js`](assets/_renderer.js): theme-aware VexFlow renderer (meta chips, degree chips, beaming, per-note styling)
+- [`assets/_transcription.js`](assets/_transcription.js): transcription editor — VexFlow-engraved staff with a pointer overlay (ghost-note preview, drag-to-aim, erase, undo, beat progress) plus the back-side answer comparison
+- [`debug/transcription-harness.html`](debug/transcription-harness.html), [`debug/review-harness.html`](debug/review-harness.html), [`debug/sing-harness.html`](debug/sing-harness.html): browser harnesses (with night-mode toggles) that reuse the deck CSS/JS directly
+- [`tests/transcription-harness.spec.js`](tests/transcription-harness.spec.js): Playwright coverage for the transcription editor and review comparison
 
 ## Python Setup
 

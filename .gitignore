@@ -13,3 +13,4 @@ test-results/
 .swift-module-cache/
 assets/_*.mp3
 assets/_*.wav
+.tmp/

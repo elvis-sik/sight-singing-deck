@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sing Harness</title>
+    <link rel="stylesheet" href="../assets/card_styles.css" />
+    <link rel="stylesheet" href="harness.css" />
+  </head>
+  <body class="card">
+    <button type="button" class="ss-btn harness-night-toggle" id="night-toggle">Night mode</button>
+    <p class="harness-title">Sing · front + back</p>
+
+    <div class="ss-wrap">
+      <div id="melody-data" style="display:none;">
+        {"version":2,"clef":"treble","key":"C","mode":"major","timeSig":"4/4","notes":["C4","D4","E4","D4","C4","C4"],"durations":["8","8","q","q","8","8"],"bars":[{"events":[{"kind":"note","pitch":"C4","duration":"8"},{"kind":"note","pitch":"D4","duration":"8"},{"kind":"note","pitch":"E4","duration":"q"},{"kind":"note","pitch":"D4","duration":"q"},{"kind":"note","pitch":"C4","duration":"8"},{"kind":"note","pitch":"C4","duration":"8"}]}],"degrees":[1,2,3,2,1,1]}
+      </div>
+      <div class="ss-meta" id="melody-meta" data-ss-badge="Sing"></div>
+      <div class="ss-panel">
+        <div id="notation" class="ss-notation"></div>
+      </div>
+      <div class="ss-controls">
+        <button type="button" class="ss-btn"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="3" height="9" rx="1.2"/><rect x="10.5" y="6.5" width="3" height="12.5" rx="1.2"/><rect x="17" y="3" width="3" height="16" rx="1.2"/></svg><span>Cadence</span></button>
+        <button type="button" class="ss-btn"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="9" cy="17.5" rx="4.4" ry="3.2" transform="rotate(-16 9 17.5)"/><rect x="12.4" y="3.5" width="1.8" height="14.5" rx="0.9"/><path d="M14.2 3.5 C 18 6.2, 18.8 9.8, 16.2 13.4 C 17.8 9.4, 16 7.6, 14.2 7.2 Z"/></svg><span>First note</span></button>
+        <button type="button" class="ss-btn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3 L10 3 L10 10 C 10 11.2, 11 12, 12 12 C 13 12, 14 11.2, 14 10 L14 3 L16 3 L16 10 C 16 12, 14.6 13.6, 13 13.9 L13 19 L15.5 19 L15.5 21 L8.5 21 L8.5 19 L11 19 L11 13.9 C 9.4 13.6, 8 12, 8 10 Z"/></svg><span>Tonic</span></button>
+      </div>
+      <p class="ss-prompt">Sing this melody.</p>
+    </div>
+
+    <hr class="ss-hr" />
+
+    <div class="ss-wrap">
+      <div id="answer-info"></div>
+      <div class="ss-controls">
+        <button type="button" class="ss-btn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.1 L18.6 12 L8 18.9 Z"/></svg><span>Play melody</span></button>
+      </div>
+    </div>
+
+    <p class="harness-nav">
+      <a href="transcription-harness.html">Transcribe</a> ·
+      <a href="review-harness.html">Review</a> ·
+      <a href="sing-harness.html">Sing</a>
+    </p>
+
+    <script src="../assets/_vexflow.js"></script>
+    <script src="../assets/_renderer.js"></script>
+    <script>
+      document.getElementById("night-toggle").addEventListener("click", function () {
+        document.body.classList.toggle("nightMode");
+        document.body.classList.toggle("night_mode");
+        if (window.SightSingingRedraw) window.SightSingingRedraw();
+      });
+    </script>
+  </body>
+</html>

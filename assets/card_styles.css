@@ -1,0 +1,448 @@
+/* Sight Singing deck — shared card styles.
+   Source of truth for the note-type CSS: scripts/build_deck.py reads this file
+   and embeds it into the Anki model. The debug harness pages link it directly. */
+
+.card {
+  --ss-bg: #f7f5f0;
+  --ss-panel: #fffefa;
+  --ss-panel-edge: rgba(28, 25, 23, 0.09);
+  --ss-ink: #221f1c;
+  --ss-ink-soft: #6f6a63;
+  --ss-ink-faint: #aca69d;
+  --ss-accent: #4f46e5;
+  --ss-accent-strong: #4338ca;
+  --ss-accent-ink: #ffffff;
+  --ss-accent-soft: rgba(79, 70, 229, 0.11);
+  --ss-good: #16803c;
+  --ss-good-soft: rgba(22, 128, 60, 0.12);
+  --ss-bad: #b91c1c;
+  --ss-bad-soft: rgba(185, 28, 28, 0.10);
+  --ss-btn-bg: #ffffff;
+  --ss-btn-edge: rgba(28, 25, 23, 0.14);
+  --ss-btn-hover: #f4f1ea;
+  --ss-track: rgba(28, 25, 23, 0.10);
+  --ss-shadow: 0 1px 2px rgba(28, 25, 23, 0.05), 0 10px 28px -14px rgba(28, 25, 23, 0.28);
+
+  background: var(--ss-bg);
+  color: var(--ss-ink);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  font-size: 16px;
+}
+
+.card.nightMode,
+.card.night_mode,
+.nightMode .card,
+.night_mode .card {
+  --ss-bg: #17171d;
+  --ss-panel: #1f1f27;
+  --ss-panel-edge: rgba(235, 233, 244, 0.10);
+  --ss-ink: #eceaf2;
+  --ss-ink-soft: #a29fae;
+  --ss-ink-faint: #6d6a78;
+  --ss-accent: #818cf8;
+  --ss-accent-strong: #a5b4fc;
+  --ss-accent-ink: #141420;
+  --ss-accent-soft: rgba(129, 140, 248, 0.16);
+  --ss-good: #4ade80;
+  --ss-good-soft: rgba(74, 222, 128, 0.13);
+  --ss-bad: #f87171;
+  --ss-bad-soft: rgba(248, 113, 113, 0.12);
+  --ss-btn-bg: #26262f;
+  --ss-btn-edge: rgba(235, 233, 244, 0.14);
+  --ss-btn-hover: #2e2e39;
+  --ss-track: rgba(235, 233, 244, 0.12);
+  --ss-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 12px 30px -14px rgba(0, 0, 0, 0.6);
+}
+
+/* ---- layout ------------------------------------------------------------ */
+
+.ss-wrap {
+  max-width: 580px;
+  margin: 0 auto;
+  padding: 10px 8px 4px;
+}
+
+.ss-hr {
+  border: none;
+  border-top: 1px solid var(--ss-panel-edge);
+  margin: 22px auto;
+  max-width: 580px;
+}
+
+/* ---- meta chips --------------------------------------------------------- */
+
+.ss-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin: 2px 0 12px;
+}
+
+.ss-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: var(--ss-accent-soft);
+  color: var(--ss-ink-soft);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ss-chip-badge {
+  background: var(--ss-accent);
+  color: var(--ss-accent-ink);
+}
+
+/* ---- panels ------------------------------------------------------------- */
+
+.ss-panel {
+  background: var(--ss-panel);
+  border: 1px solid var(--ss-panel-edge);
+  border-radius: 16px;
+  box-shadow: var(--ss-shadow);
+  padding: 10px 8px;
+  margin: 0 auto 14px;
+  max-width: 580px;
+}
+
+.ss-notation {
+  min-height: 120px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.ss-notation svg {
+  display: block;
+  margin: 0 auto;
+}
+
+.ss-fallback {
+  font-size: 1.25rem;
+  letter-spacing: 0.06em;
+  text-align: center;
+  margin: 24px 0;
+  color: var(--ss-ink);
+}
+
+/* ---- buttons ------------------------------------------------------------ */
+
+.ss-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0 6px;
+  justify-content: center;
+}
+
+.ss-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--ss-btn-edge);
+  background: var(--ss-btn-bg);
+  color: var(--ss-ink);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.05);
+  transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.ss-btn:hover { background: var(--ss-btn-hover); }
+.ss-btn:active { transform: translateY(0.5px) scale(0.985); }
+
+.ss-btn svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+  fill: currentColor;
+  flex: none;
+}
+
+.ss-btn[disabled] {
+  opacity: 0.4;
+  cursor: default;
+  pointer-events: none;
+}
+
+.ss-tool-active,
+.ss-tool-active:hover {
+  background: var(--ss-accent);
+  border-color: var(--ss-accent);
+  color: var(--ss-accent-ink);
+}
+
+/* ---- prompt ------------------------------------------------------------- */
+
+.ss-prompt {
+  text-align: center;
+  color: var(--ss-ink-soft);
+  font-family: ui-serif, Georgia, "Times New Roman", serif;
+  font-style: italic;
+  font-size: 17px;
+  letter-spacing: 0.01em;
+  margin: 14px 0 6px;
+}
+
+/* ---- answer side (Sing) -------------------------------------------------- */
+
+.ss-degrees {
+  text-align: center;
+  margin: 4px 0 10px;
+}
+
+.ss-degrees-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ss-ink-faint);
+  margin-bottom: 8px;
+}
+
+.ss-degree-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 34px;
+  margin: 0 3px;
+  padding: 7px 6px 6px;
+  border-radius: 10px;
+  background: var(--ss-accent-soft);
+}
+
+.ss-degree-num {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ss-accent-strong);
+  line-height: 1;
+}
+
+.ss-degree-note {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ss-ink-soft);
+  line-height: 1;
+}
+
+.ss-degree-rest .ss-degree-num { color: var(--ss-ink-faint); }
+
+/* ---- transcription editor ------------------------------------------------ */
+
+.ss-editor-panel { padding: 12px 8px 8px; }
+
+#transcribe-editor { overflow-x: auto; overflow-y: hidden; }
+
+.ss-editor-stage {
+  position: relative;
+  margin: 0 auto;
+  touch-action: none;
+}
+
+.ss-editor-stage .ss-editor-score svg { display: block; }
+
+.ss-editor-overlay {
+  position: absolute;
+  inset: 0;
+  cursor: crosshair;
+}
+
+.ss-editor-readonly .ss-editor-overlay { display: none; }
+
+.ss-ghost-label {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--ss-accent);
+  color: var(--ss-accent-ink);
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.ss-ghost-label-invalid { background: var(--ss-bad); color: #fff; }
+.ss-ghost-label-erase { background: var(--ss-bad); color: #fff; }
+
+.ss-editor-message {
+  text-align: center;
+  color: var(--ss-ink-soft);
+  font-size: 14px;
+  padding: 28px 12px;
+}
+
+/* ---- transcription toolbar ------------------------------------------------ */
+
+.ss-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: stretch;
+  gap: 8px;
+  margin: 12px 0 0;
+}
+
+.ss-durbar { gap: 7px; }
+
+.ss-btn-duration {
+  flex-direction: column;
+  gap: 4px;
+  width: 62px;
+  padding: 7px 0 6px;
+  border-radius: 14px;
+}
+
+.ss-btn-duration svg {
+  width: 26px;
+  height: 26px;
+}
+
+.ss-btn-duration .ss-btn-caption {
+  font-size: 9.5px;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.ss-durbar-disabled .ss-btn-duration {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.ss-segmented {
+  display: inline-flex;
+  border: 1px solid var(--ss-btn-edge);
+  border-radius: 999px;
+  background: var(--ss-btn-bg);
+  overflow: hidden;
+  box-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.05);
+}
+
+.ss-segmented .ss-btn {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 9px 14px;
+}
+
+.ss-segmented .ss-btn + .ss-btn { border-left: 1px solid var(--ss-btn-edge); }
+
+/* ---- status + beat progress ---------------------------------------------- */
+
+.ss-status-row {
+  max-width: 420px;
+  margin: 12px auto 0;
+}
+
+.ss-beatbar {
+  display: flex;
+  gap: 6px;
+  margin: 0 auto 8px;
+  max-width: 260px;
+}
+
+.ss-beat {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--ss-track);
+  overflow: hidden;
+}
+
+.ss-beat-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 3px;
+  background: var(--ss-accent);
+  transition: width 0.18s ease;
+}
+
+.ss-beatbar-full .ss-beat-fill { background: var(--ss-good); }
+
+.ss-status {
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--ss-ink-soft);
+  min-height: 1.3em;
+}
+
+.ss-status strong { color: var(--ss-ink); font-weight: 650; }
+
+/* ---- transcription review (back) ------------------------------------------ */
+
+.ss-verdict {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  max-width: 440px;
+  margin: 0 auto 16px;
+  padding: 11px 18px;
+  border-radius: 14px;
+  font-size: 14.5px;
+  font-weight: 600;
+}
+
+.ss-verdict svg { width: 18px; height: 18px; flex: none; fill: currentColor; }
+
+.ss-verdict-good { background: var(--ss-good-soft); color: var(--ss-good); }
+.ss-verdict-partial { background: var(--ss-accent-soft); color: var(--ss-accent-strong); }
+.ss-verdict-none { background: var(--ss-track); color: var(--ss-ink-soft); }
+
+.ss-compare-label {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ss-ink-faint);
+  margin: 14px 0 6px;
+}
+
+.ss-legend {
+  text-align: center;
+  font-size: 12px;
+  color: var(--ss-ink-soft);
+  margin: 6px 0 0;
+}
+
+.ss-legend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin: 0 4px 0 10px;
+  vertical-align: 1px;
+}
+
+.ss-legend-dot-good { background: var(--ss-good); }
+.ss-legend-dot-bad { background: var(--ss-bad); }
+
+/* ---- audio-less clients ---------------------------------------------------- */
+
+.no-audio .ss-if-audio { display: none; }
+
+/* ---- back side: hide the interactive editor chrome ------------------------- */
+
+#back .ss-editor-panel,
+#back #transcribe-ui,
+#back .ss-transcribe-front-audio,
+#back .ss-prompt-transcribe { display: none; }

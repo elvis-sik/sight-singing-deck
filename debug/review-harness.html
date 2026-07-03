@@ -3,28 +3,52 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Transcription Harness</title>
+    <title>Transcription Review Harness</title>
     <link rel="stylesheet" href="../assets/card_styles.css" />
     <link rel="stylesheet" href="harness.css" />
   </head>
   <body class="card">
     <button type="button" class="ss-btn harness-night-toggle" id="night-toggle">Night mode</button>
-    <p class="harness-title">Transcribe · front</p>
+    <p class="harness-title">Transcribe · back (review)</p>
 
     <script>
-      window.sightSingingMelodyId = "debug_harness";
+      window.sightSingingMelodyId = "debug_review";
+      // Seed a saved answer: first two events right, third wrong pitch+duration.
+      try {
+        localStorage.setItem(
+          "ss-transcribe:debug_review",
+          JSON.stringify([
+            { kind: "note", pitch: "C4", duration: "q", startUnit: 0 },
+            { kind: "note", pitch: "D4", duration: "q", startUnit: 2 },
+            { kind: "note", pitch: "E4", duration: "q", startUnit: 4 },
+            { kind: "note", pitch: "G4", duration: "q", startUnit: 6 }
+          ])
+        );
+      } catch (e) {}
     </script>
+
+    <div id="back" style="display:none;"></div>
 
     <div class="ss-wrap">
       <div id="melody-data" style="display:none;">
         {"version":2,"clef":"treble","key":"C","mode":"major","timeSig":"4/4","notes":["C4","D4","C4"],"durations":["q","q","h"],"bars":[{"events":[{"kind":"note","pitch":"C4","duration":"q"},{"kind":"note","pitch":"D4","duration":"q"},{"kind":"note","pitch":"C4","duration":"h"}]}],"degrees":[1,2,1]}
       </div>
       <div class="ss-meta" id="melody-meta" data-ss-badge="Transcribe"></div>
-      <div class="ss-panel ss-editor-panel">
-        <div id="transcribe-editor"></div>
+      <div id="transcribe-result" class="ss-verdict ss-verdict-none"></div>
+      <div id="transcribe-user-block">
+        <div class="ss-compare-label">Your transcription</div>
+        <div class="ss-panel">
+          <div id="transcribe-user" class="ss-notation"></div>
+        </div>
+        <div id="transcribe-legend" class="ss-legend">
+          <span class="ss-legend-dot ss-legend-dot-good"></span>matches
+          <span class="ss-legend-dot ss-legend-dot-bad"></span>different
+        </div>
       </div>
-      <div id="transcribe-ui"></div>
-      <p class="ss-prompt ss-prompt-transcribe">Write down the melody you hear.</p>
+      <div class="ss-compare-label">Target melody</div>
+      <div class="ss-panel">
+        <div id="transcribe-target" class="ss-notation"></div>
+      </div>
     </div>
 
     <p class="harness-nav">
@@ -37,11 +61,12 @@
     <script src="../assets/_renderer.js"></script>
     <script src="../assets/_transcription.js"></script>
     <script>
+      window.SightSingingTranscriptionReview();
       document.getElementById("night-toggle").addEventListener("click", function () {
         document.body.classList.toggle("nightMode");
         document.body.classList.toggle("night_mode");
         if (window.SightSingingRedraw) window.SightSingingRedraw();
-        if (window.SightSingingTranscriptionRefresh) window.SightSingingTranscriptionRefresh();
+        window.SightSingingTranscriptionReview();
       });
     </script>
   </body>

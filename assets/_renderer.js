@@ -114,6 +114,26 @@
     }
   }
 
+  /* ---- theme ------------------------------------------------------------ */
+
+  function themeVar(name, fallback) {
+    try {
+      var value = window
+        .getComputedStyle(document.body)
+        .getPropertyValue(name)
+        .trim();
+      return value || fallback;
+    } catch (e) {
+      return fallback;
+    }
+  }
+
+  function themeInk() {
+    return themeVar("--ss-ink", "#221f1c");
+  }
+
+  /* ---- fallbacks ---------------------------------------------------------- */
+
   function fallbackNotation(container, data) {
     if (!container || !data || !data.events) return;
     var p = document.createElement("p");
@@ -129,17 +149,75 @@
     container.appendChild(p);
   }
 
-  function renderDegrees(container, data) {
-    if (!container || !data || !data.degrees || !data.notes) return;
-    var row = document.createElement("div");
-    row.className = "ss-degrees";
-    row.innerHTML =
-      "<span class='ss-muted'>Scale degrees:</span> " +
-      data.degrees.join(", ") +
-      "<br><span class='ss-muted'>Notes:</span> " +
-      data.notes.join(" ");
-    container.appendChild(row);
+  /* ---- meta chips ---------------------------------------------------------- */
+
+  function renderMeta(container, data) {
+    if (!container || !data) return;
+    container.innerHTML = "";
+
+    var badge = container.getAttribute("data-ss-badge");
+    var chips = [];
+    if (badge) {
+      chips.push({ text: badge, badge: true });
+    }
+    var mode = data.mode === "minor" ? "minor" : "major";
+    chips.push({ text: data.key + " " + mode });
+    chips.push({ text: data.timeSig });
+    chips.push({
+      text: data.clef === "bass" ? "Bass clef" : "Treble clef",
+    });
+
+    for (var i = 0; i < chips.length; i++) {
+      var chip = document.createElement("span");
+      chip.className = "ss-chip" + (chips[i].badge ? " ss-chip-badge" : "");
+      chip.textContent = chips[i].text;
+      container.appendChild(chip);
+    }
   }
+
+  /* ---- scale degrees (Sing back) ------------------------------------------- */
+
+  function renderDegrees(container, data) {
+    if (!container || !data || !data.events) return;
+
+    var wrap = document.createElement("div");
+    wrap.className = "ss-degrees";
+
+    var label = document.createElement("span");
+    label.className = "ss-degrees-label";
+    label.textContent = "Scale degrees";
+    wrap.appendChild(label);
+
+    var degreeIndex = 0;
+    for (var i = 0; i < data.events.length; i++) {
+      var event = data.events[i];
+      var chip = document.createElement("span");
+      chip.className = "ss-degree-chip";
+      var num = document.createElement("span");
+      num.className = "ss-degree-num";
+      var note = document.createElement("span");
+      note.className = "ss-degree-note";
+      if (event.kind === "rest") {
+        chip.className += " ss-degree-rest";
+        num.textContent = "–";
+        note.textContent = "rest";
+      } else {
+        num.textContent =
+          degreeIndex < data.degrees.length
+            ? String(data.degrees[degreeIndex])
+            : "–";
+        note.textContent = event.pitch;
+        degreeIndex += 1;
+      }
+      chip.appendChild(num);
+      chip.appendChild(note);
+      wrap.appendChild(chip);
+    }
+
+    container.appendChild(wrap);
+  }
+
+  /* ---- engraving ------------------------------------------------------------ */
 
   function restKeyForClef(clef) {
     return clef === "bass" ? "d/3" : "b/4";
@@ -166,8 +244,52 @@
     return note;
   }
 
-  function drawStaff(notationEl, data) {
+  /* Beam consecutive eighth NOTES that sit inside the same quarter beat. */
+  function beamGroups(VF, events, notes) {
+    var beams = [];
+    var unit = 0;
+    var group = [];
+
+    function flush() {
+      if (group.length >= 2) {
+        try {
+          beams.push(new VF.Beam(group));
+        } catch (e) {}
+      }
+      group = [];
+    }
+
+    for (var i = 0; i < events.length; i++) {
+      var event = events[i];
+      var units = durationUnits(event.duration);
+      var isEighthNote = event.kind === "note" && event.duration === "8";
+      var startsBeat = unit % 2 === 0;
+
+      if (isEighthNote) {
+        if (startsBeat) flush();
+        group.push(notes[i]);
+      } else {
+        flush();
+      }
+      unit += units;
+      if (isEighthNote && unit % 2 === 0) flush();
+    }
+    flush();
+    return beams;
+  }
+
+  /*
+   * Draw one bar of events into `notationEl`.
+   *
+   * options:
+   *   ink     - stroke/fill for staff furniture and default notes
+   *   styles  - array (aligned with data.events) of per-note style objects
+   *             ({ fillStyle, strokeStyle }) or null entries
+   *   width   - explicit pixel width
+   */
+  function drawStaff(notationEl, data, options) {
     if (!notationEl || !data || !data.events || !data.events.length) return false;
+    var opts = options || {};
     var VF = window.Vex && window.Vex.Flow;
     if (!VF) {
       fallbackNotation(notationEl, data);
@@ -175,31 +297,43 @@
     }
 
     notationEl.innerHTML = "";
-    var width = Math.min(520, window.innerWidth - 32);
-    var height = 160;
+    var measured = notationEl.clientWidth || window.innerWidth - 40;
+    var width = opts.width || Math.max(260, Math.min(520, measured));
+    var height = 134;
+    var ink = opts.ink || themeInk();
 
     var renderer = new VF.Renderer(notationEl, VF.Renderer.Backends.SVG);
     renderer.resize(width, height);
     var ctx = renderer.getContext();
+    ctx.setFillStyle(ink);
+    ctx.setStrokeStyle(ink);
 
-    var staveW = width - 24;
-    var stave = new VF.Stave(12, 20, staveW);
+    var staveW = width - 16;
+    var staffInk = opts.staffInk || themeVar("--ss-ink-soft", "#6f6a63");
+    var stave = new VF.Stave(8, 14, staveW);
     stave.addClef(data.clef || "treble").addTimeSignature(data.timeSig || "4/4");
+    stave.setStyle({ fillStyle: staffInk, strokeStyle: staffInk });
     stave.setContext(ctx).draw();
 
     var notes = [];
     for (var i = 0; i < data.events.length; i++) {
-      notes.push(vexNoteForEvent(VF, data.clef || "treble", data.events[i]));
+      var note = vexNoteForEvent(VF, data.clef || "treble", data.events[i]);
+      var style = opts.styles && opts.styles[i];
+      if (style) {
+        note.setStyle(style);
+        if (note.setLedgerLineStyle) note.setLedgerLineStyle(style);
+        if (note.setStemStyle && !note.isRest()) note.setStemStyle(style);
+        if (note.setFlagStyle && !note.isRest()) note.setFlagStyle(style);
+      }
+      notes.push(note);
     }
 
+    var beams = beamGroups(VF, data.events, notes);
+
     try {
-      if (VF.Formatter && VF.Formatter.FormatAndDraw) {
-        VF.Formatter.FormatAndDraw(ctx, stave, notes);
-      } else {
-        var voice = new VF.Voice({ num_beats: 4, beat_value: 4 });
-        voice.addTickables(notes);
-        new VF.Formatter().joinVoices([voice]).format([voice], staveW - 30);
-        voice.draw(ctx, stave);
+      VF.Formatter.FormatAndDraw(ctx, stave, notes);
+      for (var b = 0; b < beams.length; b++) {
+        beams[b].setContext(ctx).draw();
       }
     } catch (err) {
       notationEl.innerHTML = "";
@@ -212,26 +346,38 @@
   function run() {
     var data = parseData();
     var notationEl = document.getElementById("notation");
-    if (!notationEl) return;
+    var metaEl = document.getElementById("melody-meta");
 
-    if (!data) {
-      notationEl.textContent = "(Invalid melody data)";
-      return;
+    if (metaEl && data) {
+      renderMeta(metaEl, data);
     }
 
-    drawStaff(notationEl, data);
+    if (notationEl) {
+      if (!data) {
+        notationEl.textContent = "(Invalid melody data)";
+      } else {
+        drawStaff(notationEl, data);
+      }
+    }
 
     var answerEl = document.getElementById("answer-info");
-    if (answerEl) {
+    if (answerEl && data) {
       answerEl.innerHTML = "";
       renderDegrees(answerEl, data);
     }
   }
 
+  var resizeTimer = null;
+  window.addEventListener("resize", function () {
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(run, 150);
+  });
+
   window.SightSingingParseData = parseData;
   window.SightSingingNormalizeData = normalizeData;
   window.SightSingingDrawStaff = drawStaff;
   window.SightSingingRenderDegrees = renderDegrees;
+  window.SightSingingThemeVar = themeVar;
   window.SightSingingRedraw = run;
 
   if (document.readyState === "loading") {

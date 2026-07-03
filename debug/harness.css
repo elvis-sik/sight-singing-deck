@@ -1,0 +1,37 @@
+/* Harness-only chrome (not shipped in the deck). */
+body {
+  margin: 0;
+  padding: 28px 16px 48px;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.harness-title {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ss-ink-faint);
+  margin: 0 0 18px;
+}
+
+.harness-night-toggle {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 50;
+}
+
+.harness-nav {
+  text-align: center;
+  margin-top: 34px;
+  font-size: 13px;
+  color: var(--ss-ink-soft);
+}
+
+.harness-nav a {
+  color: var(--ss-accent);
+  text-decoration: none;
+  margin: 0 8px;
+}
