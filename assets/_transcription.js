@@ -798,21 +798,28 @@
       return { type: "erase", eventIndex: idx };
     }
 
-    var starts = validStarts();
-    if (!starts.length) {
-      return { type: "full" };
-    }
-
+    /*
+     * Placement targets every grid-aligned start for the selected
+     * duration, occupied or not: painting over existing events replaces
+     * them, so no eraser round-trip is needed for corrections.
+     */
     var units = durationUnits(state.duration);
     var pointerUnit = xToUnit(x);
-    var best = starts[0];
+    var best = 0;
     var bestDist = Infinity;
-    for (var i = 0; i < starts.length; i++) {
-      var center = starts[i] + units / 2;
-      var dist = Math.abs(center - pointerUnit);
+    for (var s = 0; s + units <= BAR_UNITS; s += units) {
+      var dist = Math.abs(s + units / 2 - pointerUnit);
       if (dist < bestDist) {
         bestDist = dist;
-        best = starts[i];
+        best = s;
+      }
+    }
+
+    var replaces = [];
+    for (var i = 0; i < state.events.length; i++) {
+      var ev = state.events[i];
+      if (ev.startUnit < best + units && eventEndUnit(ev) > best) {
+        replaces.push(i);
       }
     }
 
@@ -820,6 +827,7 @@
       type: state.mode === "rest" ? "rest" : "note",
       startUnit: best,
       units: units,
+      replaces: replaces,
     };
     if (ghost.type === "note") {
       ghost.pitchIndex = pitchIndexFromY(y);
@@ -864,16 +872,6 @@
     var bad = themeVar("--ss-bad", "#b91c1c");
     var ghost = hover.ghost;
     if (!ghost) return;
-
-    if (ghost.type === "full") {
-      showGhostLabel(
-        "Bar full — erase or undo first",
-        geo.width / 2,
-        geo.staveTopY - 12,
-        "invalid"
-      );
-      return;
-    }
 
     if (ghost.type === "erase-miss") {
       showGhostLabel(
@@ -920,24 +918,22 @@
     var x1 = unitToX(ghost.startUnit + ghost.units);
     var spanX = x0 - 12;
     var spanW = Math.max(26, x1 - x0 - 2);
+    var replacing = ghost.replaces && ghost.replaces.length;
 
-    svgEl(
-      "rect",
-      {
-        x: spanX,
-        y: geo.staveTopY - 18,
-        width: spanW,
-        height: geo.staveBottomY - geo.staveTopY + 44,
-        rx: 9,
-        fill: accent,
-        "fill-opacity": 0.1,
-        stroke: accent,
-        "stroke-opacity": 0.45,
-        "stroke-width": 1.4,
-        "stroke-dasharray": "4 3",
-      },
-      overlay
-    );
+    var spanAttrs = {
+      x: spanX,
+      y: geo.staveTopY - 18,
+      width: spanW,
+      height: geo.staveBottomY - geo.staveTopY + 44,
+      rx: 9,
+      fill: accent,
+      "fill-opacity": replacing ? 0.15 : 0.1,
+      stroke: accent,
+      "stroke-opacity": replacing ? 0.7 : 0.45,
+      "stroke-width": 1.4,
+    };
+    if (!replacing) spanAttrs["stroke-dasharray"] = "4 3";
+    svgEl("rect", spanAttrs, overlay);
 
     var beatText = DURATION_LABELS[state.duration].toLowerCase();
 
@@ -1059,18 +1055,30 @@
 
   function attachPointerHandlers(overlay) {
     var active = false;
+    var lastMove = null;
 
-    function update(event) {
+    /*
+     * Aim exclusively with pointermove positions. In Anki's Qt webview,
+     * button events (pointerdown/pointerup) can report coordinates in a
+     * different space than moves, which used to re-aim the ghost at the
+     * bottom pitch right before the commit. Button events only fall back
+     * to their own coordinates when no move was ever seen (first touch).
+     */
+    function update(event, isMove) {
       var pos = pointerPos(event, overlay);
+      if (isMove) lastMove = pos;
+      var aim = isMove || !lastMove ? pos : lastMove;
       hover = {
-        x: pos.x,
-        y: pos.y,
-        ghost: computeGhost(pos.x, pos.y),
+        x: aim.x,
+        y: aim.y,
+        ghost: computeGhost(aim.x, aim.y),
       };
       renderOverlay();
     }
 
-    overlay.addEventListener("pointermove", update);
+    overlay.addEventListener("pointermove", function (event) {
+      update(event, true);
+    });
     overlay.addEventListener("pointerdown", function (event) {
       active = true;
       if (overlay.setPointerCapture) {
@@ -1078,7 +1086,7 @@
           overlay.setPointerCapture(event.pointerId);
         } catch (e) {}
       }
-      update(event);
+      update(event, false);
       event.preventDefault();
     });
     overlay.addEventListener("pointerup", function (event) {
@@ -1115,6 +1123,11 @@
   function commitGhost(ghost) {
     if (ghost.type === "note" || ghost.type === "rest") {
       pushHistory();
+      if (ghost.replaces && ghost.replaces.length) {
+        for (var r = ghost.replaces.length - 1; r >= 0; r--) {
+          state.events.splice(ghost.replaces[r], 1);
+        }
+      }
       state.events.push(
         ghost.type === "rest"
           ? {

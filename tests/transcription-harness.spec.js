@@ -73,6 +73,52 @@ test("erase removes an event and undo restores it", async ({ page }) => {
   expect((await debugState(page)).events).toHaveLength(2);
 });
 
+test("clicking an occupied slot overwrites without the eraser", async ({
+  page,
+}) => {
+  await tapStaff(page, 0, "E4");
+  await tapStaff(page, 0, "G4");
+  expect((await debugState(page)).events).toEqual([
+    { kind: "note", pitch: "G4", duration: "q", startUnit: 0 },
+  ]);
+
+  // A half note painted over units 0-3 replaces everything it overlaps.
+  await tapStaff(page, 2, "D4");
+  await page.locator("#transcribe-duration-h").click();
+  await tapStaff(page, 0, "C4");
+  expect((await debugState(page)).events).toEqual([
+    { kind: "note", pitch: "C4", duration: "h", startUnit: 0 },
+  ]);
+});
+
+test("commit uses the last move position, not button-event coordinates", async ({
+  page,
+}) => {
+  // Simulate Anki's Qt webview, where pointerdown/up carry wrong Y coords.
+  const events = await page.evaluate(() => {
+    const overlay = document.querySelector(".ss-editor-overlay");
+    const dbg = window.SightSingingTranscriptionDebug;
+    const fire = (type, x, y) =>
+      overlay.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          pointerId: 1,
+          isPrimary: true,
+          clientX: x,
+          clientY: y,
+        })
+      );
+    const p = dbg.clientPoint(0, "G4");
+    fire("pointermove", p.x, p.y);
+    fire("pointerdown", p.x, 9999);
+    fire("pointerup", p.x, 9999);
+    return dbg.getState().events;
+  });
+  expect(events).toEqual([
+    { kind: "note", pitch: "G4", duration: "q", startUnit: 0 },
+  ]);
+});
+
 test("full bar reports completion and clear resets it", async ({ page }) => {
   await page.locator("#transcribe-duration-w").click();
   await tapStaff(page, 0, "G4");
