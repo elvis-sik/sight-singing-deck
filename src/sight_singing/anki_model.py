@@ -9,13 +9,22 @@ import genanki
 # Stable IDs for this deck (change if you fork a separate published deck).
 DECK_ID = 2_948_817_001
 MODEL_ID = 2_948_817_015
-MODEL_NAME = "Sight Singing (MVP v22 engraved editor)"
+MODEL_NAME = "Sight Singing (MVP v23 inline engine)"
 
+# VexFlow (~1 MB) stays an external media file; it loads reliably everywhere.
+# The renderer and transcription scripts are small and are INLINED into the
+# templates (see FRONT/TRANSCRIBE templates) rather than shipped as media,
+# because AnkiDroid intermittently fails to serve freshly-imported media
+# files over its local HTTP server right after import — the big, stable-named
+# VexFlow file loads, but the small, per-version-renamed renderer/transcription
+# files do not. Inlining removes those two network fetches entirely, so the
+# card no longer depends on AnkiDroid's media server for them.
 VEXFLOW_ASSET_NAME = "_vexflow_ss_v1.js"
-RENDERER_ASSET_NAME = "_renderer_ss_v4.js"
-TRANSCRIPTION_ASSET_NAME = "_transcription_ss_v9.js"
 
-_CSS_PATH = Path(__file__).resolve().parents[2] / "assets" / "card_styles.css"
+_ASSETS_DIR = Path(__file__).resolve().parents[2] / "assets"
+_CSS_PATH = _ASSETS_DIR / "card_styles.css"
+_RENDERER_PATH = _ASSETS_DIR / "_renderer.js"
+_TRANSCRIPTION_PATH = _ASSETS_DIR / "_transcription.js"
 
 FIELD_NAMES = [
     "MelodyJSON",
@@ -34,6 +43,26 @@ FIELD_NAMES = [
 
 def model_css() -> str:
     return _CSS_PATH.read_text(encoding="utf-8").strip()
+
+
+def _inline_script(path: Path) -> str:
+    """Read a JS asset and wrap it in an inline <script> tag for a template.
+
+    The sources contain no `</script>` or Anki `{{ }}` sequences (guarded by a
+    repo test), so they embed verbatim.
+    """
+    js = path.read_text(encoding="utf-8")
+    if "</script" in js.lower() or "{{" in js or "}}" in js:
+        raise ValueError(f"{path.name} is not safe to inline into a template")
+    return "<script>\n" + js.strip() + "\n</script>"
+
+
+def renderer_inline() -> str:
+    return _inline_script(_RENDERER_PATH)
+
+
+def transcription_inline() -> str:
+    return _inline_script(_TRANSCRIPTION_PATH)
 
 
 # Shared audio playback runtime. Inline (not a media file) so playback works
@@ -325,7 +354,7 @@ __BOOT_HEAD__
 <p class="ss-prompt">Sing this melody.</p>
 </div>
 <script src="__VEXFLOW__"></script>
-<script src="__RENDERER__"></script>
+__RENDERER_INLINE__
 __BOOT_TAIL__
 """.strip()
 
@@ -388,8 +417,8 @@ __BOOT_HEAD__
 <p class="ss-prompt ss-prompt-transcribe">Write down the melody you hear.</p>
 </div>
 <script src="__VEXFLOW__"></script>
-<script src="__RENDERER__"></script>
-<script src="__TRANSCRIPTION__"></script>
+__RENDERER_INLINE__
+__TRANSCRIPTION_INLINE__
 __BOOT_TAIL__
 """.strip()
 
@@ -435,8 +464,8 @@ def _fill(template: str) -> str:
         .replace("__ICON_NOTE__", ICON_NOTE)
         .replace("__ICON_FORK__", ICON_FORK)
         .replace("__VEXFLOW__", VEXFLOW_ASSET_NAME)
-        .replace("__RENDERER__", RENDERER_ASSET_NAME)
-        .replace("__TRANSCRIPTION__", TRANSCRIPTION_ASSET_NAME)
+        .replace("__RENDERER_INLINE__", renderer_inline())
+        .replace("__TRANSCRIPTION_INLINE__", transcription_inline())
     )
 
 

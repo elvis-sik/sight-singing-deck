@@ -28,8 +28,6 @@ from genanki.apkg_schema import APKG_SCHEMA
 from sight_singing.anki_model import (
     DECK_ID,
     FIELD_NAMES,
-    RENDERER_ASSET_NAME,
-    TRANSCRIPTION_ASSET_NAME,
     VEXFLOW_ASSET_NAME,
     make_model,
 )
@@ -56,10 +54,10 @@ def build(out_path: Path, deck_name: str, assets_dir: Path) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="ss-deck-media-build-") as tmp:
         tmp_dir = Path(tmp)
+        # Only VexFlow ships as media now; the renderer and transcription
+        # scripts are inlined into the note-type templates (see anki_model).
         js_sources = [
             ("_vexflow.js", VEXFLOW_ASSET_NAME),
-            ("_renderer.js", RENDERER_ASSET_NAME),
-            ("_transcription.js", TRANSCRIPTION_ASSET_NAME),
         ]
         media_files: list[str] = []
         for src_name, dest_name in js_sources:
