@@ -50,18 +50,3 @@ test("Transcribe back renders the comparison despite load order", async ({
   expect(await page.locator("#transcribe-target svg path").count()).toBeGreaterThan(0);
   await expect(page.locator(".ss-diag")).toHaveCount(0);
 });
-
-test("shows a diagnostic (not a blank card) when the engine can't load", async ({
-  page,
-}) => {
-  // Simulate a platform (e.g. AnkiDroid) where VexFlow never loads. The card
-  // must surface a readable diagnostic naming the cause rather than a blank
-  // staff. The template gives up at ~6s, so allow generous time.
-  await page.goto(
-    "/debug/anki-inject-emulation.html?card=sing&side=front&break=vexflow"
-  );
-  const diag = page.locator(".ss-diag");
-  await expect(diag).toBeVisible({ timeout: 12000 });
-  await expect(diag).toContainText("VexFlow: MISSING");
-  await expect(diag).toContainText("load errors:");
-});

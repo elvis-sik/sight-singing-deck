@@ -5,9 +5,16 @@ Code-generated Anki deck experiments for beginner sight singing.
 The project started as a 10-card MVP that validates the full pipeline:
 
 - Python generates structured melody card data.
-- VexFlow renders notation inside Anki cards.
+- A slim, Bravura-only VexFlow build renders notation inside Anki cards. It and
+  all card scripts are **inlined into the note-type templates** (the deck ships
+  no external `.js` media), so cards render offline on Desktop, iOS, and
+  AnkiDroid without depending on any platform's media server.
 - Shared media assets provide playback and rendering helpers.
 - `genanki` packages the result into `.apkg` files.
+
+See [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) for the one harmless, AnkiDroid-side
+"Failed to load" message and platform-support notes (share this with users when
+publishing).
 
 Current work also includes fixed-audio curriculum planning, rhythm curriculum notes, and a transcription minigame/debug harness.
 

@@ -9,20 +9,17 @@ import genanki
 # Stable IDs for this deck (change if you fork a separate published deck).
 DECK_ID = 2_948_817_001
 MODEL_ID = 2_948_817_015
-MODEL_NAME = "Sight Singing (MVP v23 inline engine)"
+MODEL_NAME = "Sight Singing (MVP v24 inline engine)"
 
-# VexFlow (~1 MB) stays an external media file; it loads reliably everywhere.
-# The renderer and transcription scripts are small and are INLINED into the
-# templates (see FRONT/TRANSCRIBE templates) rather than shipped as media,
-# because AnkiDroid intermittently fails to serve freshly-imported media
-# files over its local HTTP server right after import — the big, stable-named
-# VexFlow file loads, but the small, per-version-renamed renderer/transcription
-# files do not. Inlining removes those two network fetches entirely, so the
-# card no longer depends on AnkiDroid's media server for them.
-VEXFLOW_ASSET_NAME = "_vexflow_ss_v1.js"
-
+# All JavaScript — VexFlow, the renderer, and the transcription editor — is
+# INLINED into the note-type templates; the deck ships NO external .js media.
+# This is because AnkiDroid intermittently fails to serve freshly-imported
+# media over its local HTTP server right after import. VexFlow is the slim
+# Bravura-only build (~570 KB vs the ~1 MB full build) so inlining it is
+# affordable; being inline it also can never fail to load, on any platform.
 _ASSETS_DIR = Path(__file__).resolve().parents[2] / "assets"
 _CSS_PATH = _ASSETS_DIR / "card_styles.css"
+_VEXFLOW_PATH = _ASSETS_DIR / "_vexflow.js"
 _RENDERER_PATH = _ASSETS_DIR / "_renderer.js"
 _TRANSCRIPTION_PATH = _ASSETS_DIR / "_transcription.js"
 
@@ -63,6 +60,23 @@ def renderer_inline() -> str:
 
 def transcription_inline() -> str:
     return _inline_script(_TRANSCRIPTION_PATH)
+
+
+def vexflow_inline() -> str:
+    """Inline the (slim, minified) VexFlow bundle as a <script> tag.
+
+    The minified bundle contains a single `{{` (a function body that opens a
+    block statement). Anki's `{{field}}` templating would otherwise treat it
+    as a field, so split it into `{ {` — whitespace-only in JS, semantically
+    identical, and verified to keep the bundle valid.
+    """
+    js = _VEXFLOW_PATH.read_text(encoding="utf-8")
+    if "</script" in js.lower():
+        raise ValueError("VexFlow bundle unexpectedly contains </script>")
+    js = js.replace("{{", "{ {")
+    if "{{" in js:
+        raise ValueError("VexFlow bundle still contains {{ after transform")
+    return "<script>\n" + js.strip() + "\n</script>"
 
 
 # Shared audio playback runtime. Inline (not a media file) so playback works
@@ -353,7 +367,7 @@ __BOOT_HEAD__
 </div>
 <p class="ss-prompt">Sing this melody.</p>
 </div>
-<script src="__VEXFLOW__"></script>
+__VEXFLOW_INLINE__
 __RENDERER_INLINE__
 __BOOT_TAIL__
 """.strip()
@@ -416,7 +430,7 @@ __BOOT_HEAD__
 </div>
 <p class="ss-prompt ss-prompt-transcribe">Write down the melody you hear.</p>
 </div>
-<script src="__VEXFLOW__"></script>
+__VEXFLOW_INLINE__
 __RENDERER_INLINE__
 __TRANSCRIPTION_INLINE__
 __BOOT_TAIL__
@@ -463,7 +477,7 @@ def _fill(template: str) -> str:
         .replace("__ICON_CHORD__", ICON_CHORD)
         .replace("__ICON_NOTE__", ICON_NOTE)
         .replace("__ICON_FORK__", ICON_FORK)
-        .replace("__VEXFLOW__", VEXFLOW_ASSET_NAME)
+        .replace("__VEXFLOW_INLINE__", vexflow_inline())
         .replace("__RENDERER_INLINE__", renderer_inline())
         .replace("__TRANSCRIPTION_INLINE__", transcription_inline())
     )

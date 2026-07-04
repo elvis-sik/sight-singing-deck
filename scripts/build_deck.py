@@ -7,7 +7,6 @@ import argparse
 import itertools
 import json
 import os
-import shutil
 import sqlite3
 import sys
 import tempfile
@@ -28,7 +27,6 @@ from genanki.apkg_schema import APKG_SCHEMA
 from sight_singing.anki_model import (
     DECK_ID,
     FIELD_NAMES,
-    VEXFLOW_ASSET_NAME,
     make_model,
 )
 from sight_singing.audio_assets import build_all_audio, media_audio_basenames
@@ -52,30 +50,18 @@ def build(out_path: Path, deck_name: str, assets_dir: Path) -> None:
 
     pkg = genanki.Package(deck)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="ss-deck-media-build-") as tmp:
-        tmp_dir = Path(tmp)
-        # Only VexFlow ships as media now; the renderer and transcription
-        # scripts are inlined into the note-type templates (see anki_model).
-        js_sources = [
-            ("_vexflow.js", VEXFLOW_ASSET_NAME),
-        ]
-        media_files: list[str] = []
-        for src_name, dest_name in js_sources:
-            src_path = assets_dir / src_name
-            if not src_path.is_file():
-                raise FileNotFoundError(f"Missing asset: {src_path}")
-            dest_path = tmp_dir / dest_name
-            shutil.copyfile(src_path, dest_path)
-            media_files.append(str(dest_path))
-        for bn in media_audio_basenames():
-            p = assets_dir / bn
-            if not p.is_file():
-                raise FileNotFoundError(
-                    f"Missing generated audio {p}; build_all_audio should create it."
-                )
-            media_files.append(str(p))
-        pkg.media_files = media_files
-        write_package(pkg, out_path)
+    # All JavaScript (VexFlow + renderer + transcription) is inlined into the
+    # note-type templates, so the deck ships no .js media — only audio.
+    media_files: list[str] = []
+    for bn in media_audio_basenames():
+        p = assets_dir / bn
+        if not p.is_file():
+            raise FileNotFoundError(
+                f"Missing generated audio {p}; build_all_audio should create it."
+            )
+        media_files.append(str(p))
+    pkg.media_files = media_files
+    write_package(pkg, out_path)
 
 
 def _disable_autoplay(cursor: sqlite3.Cursor) -> None:
