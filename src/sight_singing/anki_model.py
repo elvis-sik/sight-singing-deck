@@ -9,7 +9,7 @@ import genanki
 # Stable IDs for this deck (change if you fork a separate published deck).
 DECK_ID = 2_948_817_001
 MODEL_ID = 2_948_817_015
-MODEL_NAME = "Sight Singing (MVP v21 engraved editor)"
+MODEL_NAME = "Sight Singing (MVP v22 engraved editor)"
 
 VEXFLOW_ASSET_NAME = "_vexflow_ss_v1.js"
 RENDERER_ASSET_NAME = "_renderer_ss_v4.js"
@@ -179,6 +179,107 @@ ICON_FORK = (
     'C 9.4 13.6, 8 12, 8 10 Z"/></svg>'
 )
 
+# Runs before the <script src> tags: captures resource/JS load errors so the
+# diagnostic tail can report them. Idempotent across card sides.
+BOOT_HEAD = """
+<script>
+(function () {
+  if (window.__ssBoot) return;
+  window.__ssBoot = { errors: [] };
+  window.addEventListener(
+    "error",
+    function (e) {
+      var t = e && e.target;
+      if (t && (t.src || t.href)) {
+        window.__ssBoot.errors.push("load-fail " + (t.src || t.href));
+      } else if (e && e.message) {
+        window.__ssBoot.errors.push("err " + e.message);
+      }
+    },
+    true
+  );
+})();
+</script>
+""".strip()
+
+# Runs after the <script src> tags. On the two platforms that already work
+# this is a no-op (the engine is ready within ~1s). On a platform where the
+# external scripts do not load/execute (observed on AnkiDroid, whose media
+# uses a file: scheme), it (1) re-injects the scripts as dynamically-created
+# nodes — a different load path that can succeed where the static tags did
+# not — and (2) if that still fails, prints a visible diagnostic naming the
+# exact cause instead of leaving a blank card.
+BOOT_TAIL = """
+<script>
+(function () {
+  if (!window.__ssBoot || window.__ssBoot.watching) return;
+  window.__ssBoot.watching = true;
+
+  function ready() {
+    return (
+      typeof window.SightSingingRedraw === "function" &&
+      !!(window.Vex && window.Vex.Flow)
+    );
+  }
+
+  var tries = 0;
+  var recovered = false;
+  var timer = setInterval(function () {
+    tries += 1;
+    if (ready()) {
+      clearInterval(timer);
+      return;
+    }
+    if (!recovered && tries === 75) {
+      recovered = true;
+      reinject();
+    }
+    if (tries >= 150) {
+      clearInterval(timer);
+      if (!ready()) showDiagnostic();
+    }
+  }, 40);
+
+  function reinject() {
+    var seen = {};
+    var tags = document.querySelectorAll("script[src]");
+    for (var i = 0; i < tags.length; i++) {
+      var url = tags[i].getAttribute("src");
+      if (/_vexflow|_renderer|_transcription/.test(url) && !seen[url]) {
+        seen[url] = 1;
+        var s = document.createElement("script");
+        s.src = url;
+        s.async = false;
+        document.head.appendChild(s);
+      }
+    }
+  }
+
+  function showDiagnostic() {
+    if (document.querySelector(".ss-diag")) return;
+    var host =
+      document.getElementById("notation") ||
+      document.getElementById("transcribe-editor") ||
+      document.querySelector(".ss-wrap") ||
+      document.body;
+    var pre = document.createElement("pre");
+    pre.className = "ss-diag";
+    pre.textContent = [
+      "Sight Singing — notation engine did not load.",
+      "base: " + document.baseURI,
+      "VexFlow: " + (window.Vex && window.Vex.Flow ? "loaded" : "MISSING"),
+      "renderer: " + typeof window.SightSingingRedraw,
+      "transcription: " + typeof window.SightSingingTranscriptionReview,
+      "load errors: " +
+        ((window.__ssBoot.errors || []).join(" | ") || "none"),
+      "(please screenshot this and send it)",
+    ].join("\\n");
+    if (host) host.appendChild(pre);
+  }
+})();
+</script>
+""".strip()
+
 FRONT_TEMPLATE = """
 {{#MelodyAudioFile}}
 <script>
@@ -208,6 +309,7 @@ The template below this point should not refer to rendered [sound:...] fields.
 This avoids autoplay and keeps the card empty if no filename field is present.
 -->
 __AUDIO_SCRIPT__
+__BOOT_HEAD__
 
 <div class="ss-wrap">
 <div id="melody-data" style="display:none;">{{MelodyJSON}}</div>
@@ -224,6 +326,7 @@ __AUDIO_SCRIPT__
 </div>
 <script src="__VEXFLOW__"></script>
 <script src="__RENDERER__"></script>
+__BOOT_TAIL__
 """.strip()
 
 BACK_TEMPLATE = """
@@ -236,6 +339,7 @@ BACK_TEMPLATE = """
 </div>
 </div>
 <script>SightSingingRedraw && SightSingingRedraw();</script>
+__BOOT_TAIL__
 """.strip()
 
 TRANSCRIBE_FRONT_TEMPLATE = """
@@ -268,6 +372,7 @@ The template below this point should not refer to rendered [sound:...] fields.
 This avoids autoplay and keeps the card empty if no filename field is present.
 -->
 __AUDIO_SCRIPT__
+__BOOT_HEAD__
 
 <div class="ss-wrap">
 <div id="melody-data" style="display:none;">{{MelodyJSON}}</div>
@@ -285,6 +390,7 @@ __AUDIO_SCRIPT__
 <script src="__VEXFLOW__"></script>
 <script src="__RENDERER__"></script>
 <script src="__TRANSCRIPTION__"></script>
+__BOOT_TAIL__
 """.strip()
 
 TRANSCRIBE_BACK_TEMPLATE = """
@@ -315,12 +421,15 @@ if (window.SightSingingTranscriptionReview) {
   window.SightSingingTranscriptionReview();
 }
 </script>
+__BOOT_TAIL__
 """.strip()
 
 
 def _fill(template: str) -> str:
     return (
         template.replace("__AUDIO_SCRIPT__", AUDIO_SCRIPT)
+        .replace("__BOOT_HEAD__", BOOT_HEAD)
+        .replace("__BOOT_TAIL__", BOOT_TAIL)
         .replace("__ICON_PLAY__", ICON_PLAY)
         .replace("__ICON_CHORD__", ICON_CHORD)
         .replace("__ICON_NOTE__", ICON_NOTE)

@@ -29,10 +29,17 @@
         var side = params.get("side") === "front" ? "front" : "back";
         var card = params.get("card") === "transcribe" ? "transcribe" : "sing";
         var delay = parseInt(params.get("delay") || "60", 10);
+        // ?break=vexflow points a script at a missing file to exercise the
+        // card's recovery + diagnostic path (as if AnkiDroid couldn't load it).
+        var broken = params.get("break") || "";
 
         // Map the apkg media names in the fixtures to the real asset files.
         function realSrc(src) {
-          if (/_vexflow/.test(src)) return "../assets/_vexflow.js";
+          if (/_vexflow/.test(src)) {
+            return broken === "vexflow"
+              ? "../assets/_vexflow_MISSING.js"
+              : "../assets/_vexflow.js";
+          }
           if (/_renderer/.test(src)) return "../assets/_renderer.js";
           if (/_transcription/.test(src)) return "../assets/_transcription.js";
           return src;

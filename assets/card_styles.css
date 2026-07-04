@@ -442,6 +442,24 @@
 .ss-legend-dot-good { background: var(--ss-good); }
 .ss-legend-dot-bad { background: var(--ss-bad); }
 
+/* ---- boot diagnostic (only shown if the engine fails to load) -------------- */
+
+.ss-diag {
+  max-width: 560px;
+  margin: 16px auto;
+  padding: 12px 14px;
+  border: 1px solid var(--ss-bad);
+  border-radius: 12px;
+  background: var(--ss-bad-soft);
+  color: var(--ss-ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  text-align: left;
+}
+
 /* ---- audio-less clients ---------------------------------------------------- */
 
 .no-audio .ss-if-audio { display: none; }
