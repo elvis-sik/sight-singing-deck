@@ -20,8 +20,12 @@ Current work also includes fixed-audio curriculum planning, rhythm curriculum no
 
 ## Key Files
 
-- [`MVP_PLAN.md`](MVP_PLAN.md): original 10-card pipeline plan
-- [`sight_singing_deck_plan.md`](sight_singing_deck_plan.md): broader deck plan
+- [`CURRICULUM.md`](CURRICULUM.md): **master curriculum design (v2)** — the
+  function-first melodic ladder, parallel sing/dictation paths, minor and
+  keys/clefs ladders, rhythm + merge, support system, and generation plan.
+  Supersedes the older planning notes below.
+- [`MVP_PLAN.md`](MVP_PLAN.md): original 10-card pipeline plan (historical)
+- [`sight_singing_deck_plan.md`](sight_singing_deck_plan.md): broader deck plan (historical)
 - [`FIXED_AUDIO_CURRICULUM.md`](FIXED_AUDIO_CURRICULUM.md): fixed-audio curriculum notes
 - [`RHYTHM_CURRICULUM.md`](RHYTHM_CURRICULUM.md): rhythm-card curriculum notes
 - [`TRANSCRIPTION_MINIGAME_DESIGN.md`](TRANSCRIPTION_MINIGAME_DESIGN.md): transcription interaction design
