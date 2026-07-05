@@ -11,6 +11,8 @@ from sight_singing.audio_assets import (
     melody_clip_filename_for,
     note_clip_filename,
 )
+from sight_singing.theory.scales import key as make_key
+from sight_singing.theory.scales import key_signature
 
 
 def melody_to_card_fields(melody: dict[str, Any]) -> dict[str, str]:
@@ -36,6 +38,7 @@ def melody_to_card_fields(melody: dict[str, Any]) -> dict[str, str]:
     key_name = str(melody.get("key", "C"))
     mode = str(melody.get("mode", "major"))
     stage_id = str(melody.get("stage_id", "stage1"))
+    key_sig, key_accidentals = key_signature(make_key(key_name, mode))
 
     events = []
     for note, duration in zip(notes, durations):
@@ -68,6 +71,8 @@ def melody_to_card_fields(melody: dict[str, Any]) -> dict[str, str]:
         "clef": clef,
         "key": key_name,
         "mode": mode,
+        "keySig": key_sig,
+        "keyAccidentals": key_accidentals,
         "timeSig": "4/4",
         "notes": notes,
         "durations": durations,

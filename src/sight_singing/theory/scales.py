@@ -122,6 +122,21 @@ def midi_from_name(name: str) -> int:
     return note_midi(letter, acc, octave)
 
 
+def key_signature(k: Key) -> tuple[str, dict[str, int]]:
+    """VexFlow key-signature name + its letter→accidental map.
+
+    Uses the NATURAL key signature: harmonic minor shares natural minor's
+    signature (its raised 7th is drawn as an explicit accidental, not baked into
+    the signature). Returns e.g. ("G", {"F": 1, ...}) or ("Am", {all 0}).
+    """
+    base_mode = "major" if k.mode == "major" else "natural_minor"
+    natural = Key(k.tonic_letter, k.tonic_accidental, base_mode)
+    name = f"{k.tonic_letter}{_ACC_TEXT[k.tonic_accidental]}"
+    if base_mode == "natural_minor":
+        name += "m"
+    return name, natural.accidental_by_letter()
+
+
 def realize_note(k: Key, tonic_octave: int, d: int) -> tuple[str, int]:
     """Realize diatonic index `d` in key `k` (tonic at `tonic_octave`).
 

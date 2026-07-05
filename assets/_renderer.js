@@ -24,8 +24,17 @@
     return m ? m[2] || "" : "";
   }
 
+  /* A duration may carry a trailing "d" for dotted (e.g. "qd", "hd"). */
+  function splitDuration(duration) {
+    var s = String(duration || "");
+    var dotted = s.charAt(s.length - 1) === "d";
+    return { base: dotted ? s.slice(0, -1) : s, dotted: dotted };
+  }
+
   function durationUnits(duration) {
-    return DURATION_UNITS[String(duration || "")] || 0;
+    var d = splitDuration(duration);
+    var base = DURATION_UNITS[d.base] || 0;
+    return d.dotted ? base * 1.5 : base;
   }
 
   function normalizeEvent(event) {
@@ -92,6 +101,10 @@
       key: String(data.key || "C"),
       mode: String(data.mode || "major"),
       timeSig: String(data.timeSig || "4/4"),
+      keySig: data.keySig ? String(data.keySig) : "",
+      keyAcc: data.keyAccidentals && typeof data.keyAccidentals === "object"
+        ? data.keyAccidentals
+        : {},
       degrees: Array.isArray(data.degrees) ? data.degrees.slice() : [],
       events: events,
       notes: events
@@ -223,23 +236,49 @@
     return clef === "bass" ? "d/3" : "b/4";
   }
 
-  function vexNoteForEvent(VF, clef, event) {
+  function noteLetter(name) {
+    var m = String(name).match(/^([A-Ga-g])/);
+    return m ? m[1].toUpperCase() : "";
+  }
+
+  function addDot(VF, note) {
+    // VexFlow moved the dot API around between versions; try each.
+    if (VF.Dot && typeof VF.Dot.buildAndAttach === "function") {
+      VF.Dot.buildAndAttach([note], { all: true });
+    } else if (typeof note.addDotToAll === "function") {
+      note.addDotToAll();
+    } else if (typeof note.addDot === "function") {
+      note.addDot(0);
+    }
+  }
+
+  function vexNoteForEvent(VF, clef, event, keyAcc) {
+    var d = splitDuration(event.duration);
     if (event.kind === "rest") {
-      return new VF.StaveNote({
+      var rest = new VF.StaveNote({
         clef: clef,
         keys: [restKeyForClef(clef)],
-        duration: event.duration + "r",
+        duration: d.base + "r",
       });
+      if (d.dotted) addDot(VF, rest);
+      return rest;
     }
 
     var note = new VF.StaveNote({
       clef: clef,
       keys: [scientificToVexKey(event.pitch)],
-      duration: event.duration,
+      duration: d.base,
     });
-    var accidental = accidentalForPitch(event.pitch);
-    if (accidental) {
-      note.addModifier(new VF.Accidental(accidental), 0);
+    if (d.dotted) addDot(VF, note);
+    // Draw an accidental only where the note deviates from the key signature:
+    // matching the key sig -> no glyph; a natural against a sharp/flat key ->
+    // an explicit natural; anything else -> the sharp/flat glyph.
+    var acc = accidentalForPitch(event.pitch); // "", "#", or "b"
+    var accVal = acc === "#" ? 1 : acc === "b" ? -1 : 0;
+    var keyVal = (keyAcc && keyAcc[noteLetter(event.pitch)]) || 0;
+    if (accVal !== keyVal) {
+      var glyph = accVal === 0 ? "n" : acc;
+      note.addModifier(new VF.Accidental(glyph), 0);
     }
     return note;
   }
@@ -311,13 +350,21 @@
     var staveW = width - 16;
     var staffInk = opts.staffInk || themeVar("--ss-ink-soft", "#6f6a63");
     var stave = new VF.Stave(8, 14, staveW);
-    stave.addClef(data.clef || "treble").addTimeSignature(data.timeSig || "4/4");
+    stave.addClef(data.clef || "treble");
+    if (data.keySig) {
+      try {
+        stave.addKeySignature(data.keySig);
+      } catch (e) {}
+    }
+    stave.addTimeSignature(data.timeSig || "4/4");
     stave.setStyle({ fillStyle: staffInk, strokeStyle: staffInk });
     stave.setContext(ctx).draw();
 
     var notes = [];
     for (var i = 0; i < data.events.length; i++) {
-      var note = vexNoteForEvent(VF, data.clef || "treble", data.events[i]);
+      var note = vexNoteForEvent(
+        VF, data.clef || "treble", data.events[i], data.keyAcc
+      );
       var style = opts.styles && opts.styles[i];
       if (style) {
         note.setStyle(style);
