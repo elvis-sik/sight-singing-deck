@@ -7,6 +7,7 @@ from typing import Any
 
 from sight_singing.audio_assets import (
     CADENCE_FILENAME,
+    drone_clip_filename,
     melody_clip_filename_for,
     note_clip_filename,
 )
@@ -60,6 +61,7 @@ def melody_to_card_fields(melody: dict[str, Any]) -> dict[str, str]:
     )
     first_file = note_clip_filename(first_sounded_note)
     tonic_file = note_clip_filename(tonic_note)
+    drone_file = drone_clip_filename(tonic_note)
 
     payload = {
         "version": 2,
@@ -81,6 +83,7 @@ def melody_to_card_fields(melody: dict[str, Any]) -> dict[str, str]:
             "cadence": CADENCE_FILENAME,
             "first": first_file,
             "tonic": tonic_file,
+            "drone": drone_file,
         },
     }
 
@@ -92,8 +95,10 @@ def melody_to_card_fields(melody: dict[str, Any]) -> dict[str, str]:
         "FirstNoteAudio": f"[sound:{first_file}]",
         "TonicAudio": f"[sound:{tonic_file}]",
         "MelodyAudio": f"[sound:{melody_file}]",
+        "DroneAudio": f"[sound:{drone_file}]",
         "CadenceAudioFile": CADENCE_FILENAME,
         "FirstNoteAudioFile": first_file,
         "TonicAudioFile": tonic_file,
         "MelodyAudioFile": melody_file,
+        "DroneAudioFile": drone_file,
     }

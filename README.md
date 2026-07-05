@@ -42,13 +42,51 @@ Current work also includes fixed-audio curriculum planning, rhythm curriculum no
 uv sync --extra deck --extra dev
 ```
 
-Build the main deck:
+Build the main deck (the original 10-card MVP):
 
 ```sh
 .venv/bin/python scripts/build_deck.py
 ```
 
+Build the full generated curriculum:
+
+```sh
+.venv/bin/python scripts/build_curriculum_deck.py
+# fast smoke build (first N melodies per track):
+.venv/bin/python scripts/build_curriculum_deck.py --limit 5
+```
+
 Generated APKG files are written under `out/`.
+
+## Generated Curriculum
+
+`scripts/build_curriculum_deck.py` generates the full function-first curriculum
+from constraint specs (no hand-authored melodies). The pipeline lives under
+`src/sight_singing/`:
+
+- `theory/scales.py` — diatonic-index realization (0 = tonic), keys/modes,
+  movable-do solfège, fixed per-(key, clef) tonic-octave anchoring.
+- `curriculum/stages.py` — stages as constraint specs. `MAJOR_STAGES`,
+  `MINOR_STAGES` (natural + a harmonic-minor leading-tone stage), and
+  `INTERVAL_STAGES` (isolated two-note interval drills).
+- `generate/melody_gen.py` — enumerate → hard-rule filter → musicality quality
+  score → contour-signature diverse sampling.
+- `build/library.py` — realize stages into card-ready melody records.
+
+The deck ships three tracks as subdecks — **Major** (C), **Minor** (A, the
+relative minor), and **Intervals** — each split into per-stage subdecks in
+curriculum order. Every melody yields a **Sing** card and a **Transcribe**
+(dictation) card.
+
+**Audio clues** (buttons on the card, plus a per-side autoplay config block in
+the templates): Cadence, First note, Tonic, and a sustained **Drone** (an organ
+tonic held under the singing, doubled at the octave below). Melody/note/cadence/
+drone clips are content-hashed so Anki's importer always picks up changes.
+
+**Phase checkpoints / custom study:** every note is tagged `phase::<phase>`,
+`stage::<id>`, `track::<track>`, and `key::<key>_<mode>`, so mixed-review
+checkpoints are just saved searches, e.g.
+`deck:"Sight Singing::Major" tag:phase::steps` or `tag:stage::M5 OR tag:stage::M6`.
 
 ## Transcription Debug Harness
 

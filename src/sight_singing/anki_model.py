@@ -31,10 +31,12 @@ FIELD_NAMES = [
     "FirstNoteAudio",
     "TonicAudio",
     "MelodyAudio",
+    "DroneAudio",
     "CadenceAudioFile",
     "FirstNoteAudioFile",
     "TonicAudioFile",
     "MelodyAudioFile",
+    "DroneAudioFile",
 ]
 
 
@@ -99,6 +101,8 @@ if (window.Audio != undefined) {
         return window.sightSingingTonicFile;
       case "melody":
         return window.sightSingingMelodyFile;
+      case "drone":
+        return window.sightSingingDroneFile;
       default:
         return "";
     }
@@ -182,6 +186,10 @@ if (window.Audio != undefined) {
     return playSightSingingKey("tonic");
   }
 
+  function playDrone() {
+    return playSightSingingKey("drone");
+  }
+
   function playMelody() {
     return playSightSingingKey("melody");
   }
@@ -220,6 +228,15 @@ ICON_FORK = (
     '<path d="M8 3 L10 3 L10 10 C 10 11.2, 11 12, 12 12 C 13 12, 14 11.2, 14 10 L14 3 L16 3 L16 10 '
     'C 16 12, 14.6 13.6, 13 13.9 L13 19 L15.5 19 L15.5 21 L8.5 21 L8.5 19 L11 19 L11 13.9 '
     'C 9.4 13.6, 8 12, 8 10 Z"/></svg>'
+)
+# Sustained sound waves — the held tonic drone.
+ICON_DRONE = (
+    '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" '
+    'stroke-width="1.8" stroke-linecap="round">'
+    '<path d="M4 12 H7"/><path d="M17 12 H20"/>'
+    '<path d="M9 6 C 11 9, 11 15, 9 18"/>'
+    '<path d="M15 6 C 13 9, 13 15, 15 18"/>'
+    '<circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>'
 )
 
 # Runs before the <script src> tags: captures resource/JS load errors so the
@@ -330,6 +347,7 @@ window.sightSingingCadenceFile = "{{text:CadenceAudioFile}}";
 window.sightSingingFirstNoteFile = "{{text:FirstNoteAudioFile}}";
 window.sightSingingTonicFile = "{{text:TonicAudioFile}}";
 window.sightSingingMelodyFile = "{{text:MelodyAudioFile}}";
+window.sightSingingDroneFile = "{{text:DroneAudioFile}}";
 </script>
 {{/MelodyAudioFile}}
 <script>
@@ -364,6 +382,7 @@ __BOOT_HEAD__
   <button type="button" class="ss-btn" onclick="return playCadence();">__ICON_CHORD__<span>Cadence</span></button>
   <button type="button" class="ss-btn" onclick="return playFirstNote();">__ICON_NOTE__<span>First note</span></button>
   <button type="button" class="ss-btn" onclick="return playTonic();">__ICON_FORK__<span>Tonic</span></button>
+  <button type="button" class="ss-btn" onclick="return playDrone();">__ICON_DRONE__<span>Drone</span></button>
 </div>
 <p class="ss-prompt">Sing this melody.</p>
 </div>
@@ -393,6 +412,7 @@ window.sightSingingCadenceFile = "{{text:CadenceAudioFile}}";
 window.sightSingingFirstNoteFile = "{{text:FirstNoteAudioFile}}";
 window.sightSingingTonicFile = "{{text:TonicAudioFile}}";
 window.sightSingingMelodyFile = "{{text:MelodyAudioFile}}";
+window.sightSingingDroneFile = "{{text:DroneAudioFile}}";
 </script>
 {{/MelodyAudioFile}}
 <script>
@@ -426,6 +446,7 @@ __BOOT_HEAD__
 <div id="transcribe-ui"></div>
 <div class="ss-controls ss-if-audio ss-transcribe-front-audio">
   <button type="button" class="ss-btn" onclick="return playCadence();">__ICON_CHORD__<span>Cadence</span></button>
+  <button type="button" class="ss-btn" onclick="return playDrone();">__ICON_DRONE__<span>Drone</span></button>
   <button type="button" class="ss-btn" onclick="return playMelody();">__ICON_PLAY__<span>Replay melody</span></button>
 </div>
 <p class="ss-prompt ss-prompt-transcribe">Write down the melody you hear.</p>
@@ -477,6 +498,7 @@ def _fill(template: str) -> str:
         .replace("__ICON_CHORD__", ICON_CHORD)
         .replace("__ICON_NOTE__", ICON_NOTE)
         .replace("__ICON_FORK__", ICON_FORK)
+        .replace("__ICON_DRONE__", ICON_DRONE)
         .replace("__VEXFLOW_INLINE__", vexflow_inline())
         .replace("__RENDERER_INLINE__", renderer_inline())
         .replace("__TRANSCRIPTION_INLINE__", transcription_inline())

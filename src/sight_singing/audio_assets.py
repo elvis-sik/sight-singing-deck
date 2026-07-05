@@ -14,12 +14,15 @@ from typing import Any
 
 from sight_singing.midi_writer import TICKS_PER_QUARTER, write_midi
 from sight_singing.melodies import MELODIES
-from sight_singing.theory.scales import midi_from_name
+from sight_singing.theory.scales import midi_from_name, note_name, parse_note_name
 
 ROOT = Path(__file__).resolve().parents[2]
 PCM_SAMPLE_RATE = 44_100
 MP3_BITRATE = 64_000
 PIANO_PROGRAM = 0
+# Tonic-drone patch: an organ sustains cleanly for the whole clip, unlike the
+# piano (which decays), so the held tonal centre stays audible while singing.
+DRONE_PROGRAM = 16  # Drawbar Organ (General MIDI)
 FLUID_GAIN = "0.3"
 TRIM_SILENCE_THRESHOLD = 96
 TRIM_PAD_SEC = 0.12
@@ -29,6 +32,7 @@ MELODY_NOTE_RATIO = 0.90
 SINGLE_NOTE_DUR = 0.72
 CADENCE_STEP = 0.70
 CADENCE_NOTE_RATIO = 0.92
+DRONE_DUR = 6.0  # seconds of sustained tonic (doubled at the octave below)
 
 DURATION_BEATS = {
     "8": 0.5,
@@ -50,6 +54,7 @@ NOTE_TO_MIDI = {
 }
 
 PITCH_NAMES = ["C4", "D4", "E4", "F4", "G4", "A4"]
+MVP_TONICS = ["C4"]  # tonic(s) that get a sustained drone clip in the MVP deck
 CADENCE_CHORDS = [
     ["C4", "E4", "G4"],
     ["F4", "A4", "C5"],
@@ -180,6 +185,45 @@ def note_clip_filename(note_name: str) -> str:
     return f"_n_{safe}_{digest}.mp3"
 
 
+def drone_clip_filename(tonic_name: str) -> str:
+    """Sustained-tonic drone clip name (organ, doubled at the octave below)."""
+    safe = tonic_name.replace("#", "s")
+    digest = _clip_hash(
+        {
+            "kind": "drone",
+            "pitch": str(tonic_name),
+            "duration_sec": DRONE_DUR,
+            "program": DRONE_PROGRAM,
+        }
+    )
+    return f"_d_{safe}_{digest}.mp3"
+
+
+def _drone_pitches(tonic_name: str) -> list[str]:
+    """The tonic plus the same pitch an octave below, for a fuller drone."""
+    letter, acc, octave = parse_note_name(tonic_name)
+    lower = note_name(letter, acc, octave - 1)
+    return [tonic_name, lower]
+
+
+def _build_drone_clip(temp_dir: Path, tonic_name: str) -> tuple[Path, Path]:
+    safe = tonic_name.replace("#", "s")
+    midi_path = temp_dir / f"drone_{safe}.mid"
+    wav_path = temp_dir / f"drone_{safe}.wav"
+    duration_ticks = _seconds_to_ticks(DRONE_DUR, QUARTER_SEC)
+    note_events = [
+        _note_event(pitch, start_tick=0, duration_ticks=duration_ticks, velocity=78)
+        for pitch in _drone_pitches(tonic_name)
+    ]
+    _write_clip_midi(
+        midi_path,
+        quarter_seconds=QUARTER_SEC,
+        note_events=note_events,
+        program=DRONE_PROGRAM,
+    )
+    return midi_path, wav_path
+
+
 def _seconds_to_ticks(seconds: float, quarter_seconds: float) -> int:
     return max(1, round((seconds / quarter_seconds) * TICKS_PER_QUARTER))
 
@@ -214,12 +258,13 @@ def _write_clip_midi(
     *,
     quarter_seconds: float,
     note_events: list[dict[str, int]],
+    program: int = PIANO_PROGRAM,
 ) -> None:
     write_midi(
         midi_path,
         microseconds_per_quarter=_microseconds_per_quarter(quarter_seconds),
         notes=note_events,
-        program=PIANO_PROGRAM,
+        program=program,
     )
 
 
@@ -356,17 +401,17 @@ def _build_melody_clip(
     wav_path = temp_dir / f"{melody_id}.wav"
     beat_cursor = 0.0
     note_events = []
-    for note_name, duration_name in zip(notes, durations):
+    for pitch_name, duration_name in zip(notes, durations):
         beats = DURATION_BEATS.get(str(duration_name), 1.0)
         start_tick = round(beat_cursor * TICKS_PER_QUARTER)
         duration_ticks = max(
             1,
             round(beats * TICKS_PER_QUARTER * MELODY_NOTE_RATIO),
         )
-        if note_name not in (None, "rest"):
+        if pitch_name not in (None, "rest"):
             note_events.append(
                 _note_event(
-                    str(note_name),
+                    str(pitch_name),
                     start_tick=start_tick,
                     duration_ticks=duration_ticks,
                     velocity=96,
@@ -413,6 +458,12 @@ def build_all_audio(assets_dir: Path) -> list[Path]:
                 (midi_path, wav_path, assets_dir / note_clip_filename(pitch_name))
             )
 
+        for tonic_name in MVP_TONICS:
+            midi_path, wav_path = _build_drone_clip(temp_dir, tonic_name)
+            render_targets.append(
+                (midi_path, wav_path, assets_dir / drone_clip_filename(tonic_name))
+            )
+
         for melody in MELODIES:
             melody_id = str(melody["id"])
             notes, durations = melody_clip_notes_durations(melody)
@@ -438,6 +489,8 @@ def media_audio_basenames() -> list[str]:
     names = [CADENCE_FILENAME]
     for pn in PITCH_NAMES:
         names.append(note_clip_filename(pn))
+    for tonic_name in MVP_TONICS:
+        names.append(drone_clip_filename(tonic_name))
     for melody in MELODIES:
         names.append(melody_clip_filename(str(melody["id"])))
     return names
@@ -456,11 +509,19 @@ def library_note_pitches(library: list[dict[str, Any]]) -> list[str]:
     return sorted(pitches, key=midi_from_name)
 
 
+def library_tonics(library: list[dict[str, Any]]) -> list[str]:
+    """Distinct tonic pitches across the library (for drone clips), sorted."""
+    tonics = {str(mel["tonic"]) for mel in library if mel.get("tonic")}
+    return sorted(tonics, key=midi_from_name)
+
+
 def library_audio_basenames(library: list[dict[str, Any]]) -> list[str]:
     """Every audio basename an arbitrary generated library needs."""
     names = [CADENCE_FILENAME]
     for pitch in library_note_pitches(library):
         names.append(note_clip_filename(pitch))
+    for tonic in library_tonics(library):
+        names.append(drone_clip_filename(tonic))
     for mel in library:
         names.append(
             melody_clip_filename_for(
@@ -501,6 +562,11 @@ def build_library_audio(assets_dir: Path, library: list[dict[str, Any]]) -> list
             dest = note_clip_filename(pitch)
             if dest not in render_targets:
                 render_targets[dest] = _build_note_clip(temp_dir, pitch)
+
+        for tonic in library_tonics(library):
+            dest = drone_clip_filename(tonic)
+            if dest not in render_targets:
+                render_targets[dest] = _build_drone_clip(temp_dir, tonic)
 
         for mel in library:
             notes = [str(n) for n in mel["notes"]]
