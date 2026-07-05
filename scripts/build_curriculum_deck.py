@@ -31,7 +31,12 @@ from sight_singing.anki_model import DECK_ID, FIELD_NAMES, MODEL_NAME, make_mode
 from sight_singing.audio_assets import build_library_audio, library_audio_basenames
 from sight_singing.build.library import build_library
 from sight_singing.card_data import melody_to_card_fields
-from sight_singing.curriculum.stages import MAJOR_STAGES, MINOR_STAGES, Stage
+from sight_singing.curriculum.stages import (
+    INTERVAL_STAGES,
+    MAJOR_STAGES,
+    MINOR_STAGES,
+    Stage,
+)
 
 
 @dataclass(frozen=True)
@@ -46,6 +51,7 @@ class Track:
 TRACKS = [
     Track("Major", MAJOR_STAGES, "C", "major", DECK_ID + 100),
     Track("Minor", MINOR_STAGES, "A", "natural_minor", DECK_ID + 200),
+    Track("Intervals", INTERVAL_STAGES, "C", "major", DECK_ID + 300),
 ]
 
 

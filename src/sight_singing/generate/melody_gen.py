@@ -40,6 +40,8 @@ def passes_hard_rules(mel: tuple[int, ...], stage: Stage) -> bool:
         return False
     if any(a > stage.max_step for a in abs_steps):
         return False
+    if stage.min_step and any(a < stage.min_step for a in abs_steps):
+        return False
     if len(set(mel)) == 1:  # monotone
         return False
     if not stage.allow_three_repeats and _max_run(mel) >= 3:

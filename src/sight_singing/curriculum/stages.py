@@ -25,6 +25,7 @@ class Stage:
     max_step: int  # max adjacent diatonic step (1=2nd, 2=3rd, 3=4th, 4=5th)
     count: int  # target canonical melodies to keep
     length: int = 4
+    min_step: int = 0  # min adjacent step; set == max_step to pin an interval
     default_support: tuple[str, ...] = ("cadence", "first")
     # rule flags
     max_direction_changes: int = 3
@@ -237,4 +238,36 @@ for _s in _MINOR_STRUCTURAL:
 MINOR_STAGES.append(_N3_HARMONIC)
 
 
-STAGES_BY_ID = {s.id: s for s in (*MAJOR_STAGES, *MINOR_STAGES)}
+# --- Interval-singing challenge -----------------------------------------------
+# Isolated two-note drills: hear the first note (the template establishes the key
+# first), then sing up or down to the second. Each stage pins ONE diatonic
+# interval (min_step == max_step) and the generator yields both directions across
+# the range. No template change — these are ordinary length-2 melodies rendered
+# by the Sing card.
+_INTERVALS = [
+    ("IV2", "Diatonic Seconds", 1),
+    ("IV3", "Diatonic Thirds", 2),
+    ("IV4", "Fourths", 3),
+    ("IV5", "Fifths", 4),
+    ("IV6", "Sixths", 5),
+    ("IV7", "Sevenths", 6),
+    ("IV8", "The Octave", 7),
+]
+
+_INTERVAL_POOL = (DL7, D1, D2, D3, D4, D5, D6, D7, D8)
+
+INTERVAL_STAGES: list[Stage] = [
+    Stage(
+        stage_id, title, "intervals",
+        pool=_INTERVAL_POOL, start_pool=_INTERVAL_POOL, end_pool=_INTERVAL_POOL,
+        max_step=step, min_step=step, count=12, length=2,
+        require_recovery=False, default_support=("cadence", "first"),
+        notes=f"Isolated {title.lower()}, ascending and descending, in key.",
+    )
+    for stage_id, title, step in _INTERVALS
+]
+
+
+STAGES_BY_ID = {
+    s.id: s for s in (*MAJOR_STAGES, *MINOR_STAGES, *INTERVAL_STAGES)
+}
