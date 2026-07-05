@@ -14,7 +14,16 @@ from typing import Any
 
 from sight_singing.midi_writer import TICKS_PER_QUARTER, write_midi
 from sight_singing.melodies import MELODIES
-from sight_singing.theory.scales import midi_from_name, note_name, parse_note_name
+from sight_singing.theory.scales import (
+    key as make_key,
+)
+from sight_singing.theory.scales import (
+    midi_from_name,
+    note_name,
+    parse_note_name,
+    realize_note,
+    tonic_octave_for,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 PCM_SAMPLE_RATE = 44_100
@@ -55,12 +64,6 @@ NOTE_TO_MIDI = {
 
 PITCH_NAMES = ["C4", "D4", "E4", "F4", "G4", "A4"]
 MVP_TONICS = ["C4"]  # tonic(s) that get a sustained drone clip in the MVP deck
-CADENCE_CHORDS = [
-    ["C4", "E4", "G4"],
-    ["F4", "A4", "C5"],
-    ["G4", "B4", "D5"],
-    ["C4", "E4", "G4"],
-]
 
 # Anki's .apkg importer never overwrites an existing media file that has the
 # same name, so clip filenames must change whenever their audible content
@@ -89,16 +92,45 @@ def _clip_hash(payload: Any) -> str:
     return hashlib.sha1(blob.encode("utf-8")).hexdigest()[:10]
 
 
-CADENCE_FILENAME = "_cadence_C_{}.mp3".format(
-    _clip_hash(
+def cadence_chords_for(
+    key_name: str, mode: str, clef: str = "treble"
+) -> list[list[str]]:
+    """A I-IV-V-I (major) / i-iv-V-i (minor) cadence in the given key/clef.
+
+    Minor cadences realize in harmonic minor, so the dominant (V) is a major
+    triad with the raised leading tone — a real authentic cadence that lands the
+    ear on the minor tonic, not the relative major. Root-position triads on
+    scale degrees 1, 4, 5, 1, in the melody's tonic octave for that clef.
+    """
+    cad_mode = "harmonic_minor" if mode in ("natural_minor", "harmonic_minor") else "major"
+    k = make_key(key_name, cad_mode)
+    tonic_octave = tonic_octave_for(k, clef)
+    chords: list[list[str]] = []
+    for root in (0, 3, 4, 0):  # I/i, IV/iv, V, I/i
+        chords.append([realize_note(k, tonic_octave, root + off)[0] for off in (0, 2, 4)])
+    return chords
+
+
+def cadence_filename_for(key_name: str, mode: str, clef: str = "treble") -> str:
+    chords = cadence_chords_for(key_name, mode, clef)
+    digest = _clip_hash(
         {
             "kind": "cadence",
-            "chords": CADENCE_CHORDS,
+            "chords": chords,
             "step": CADENCE_STEP,
             "ratio": CADENCE_NOTE_RATIO,
+            "program": PIANO_PROGRAM,
         }
     )
-)
+    safe = key_name.replace("#", "s")
+    tag = "maj" if mode == "major" else "min"
+    return f"_cadence_{safe}{tag}_{clef}_{digest}.mp3"
+
+
+# MVP / default cadence (C major, treble). card_data resolves per-card cadences
+# via cadence_filename_for, so this stays consistent with the generated tracks.
+CADENCE_CHORDS = cadence_chords_for("C", "major", "treble")
+CADENCE_FILENAME = cadence_filename_for("C", "major", "treble")
 
 
 def _tool_path(env_var: str, binary: str, fallback: Path) -> Path:
@@ -366,12 +398,15 @@ def _build_note_clip(temp_dir: Path, note_name: str) -> tuple[Path, Path]:
     return midi_path, wav_path
 
 
-def _build_cadence_clip(temp_dir: Path) -> tuple[Path, Path]:
-    midi_path = temp_dir / "cadence.mid"
-    wav_path = temp_dir / "cadence.wav"
+def _build_cadence_clip(
+    temp_dir: Path, chords: list[list[str]] | None = None, stem: str = "cadence"
+) -> tuple[Path, Path]:
+    chords = CADENCE_CHORDS if chords is None else chords
+    midi_path = temp_dir / f"{stem}.mid"
+    wav_path = temp_dir / f"{stem}.wav"
     note_duration_ticks = _seconds_to_ticks(CADENCE_STEP * CADENCE_NOTE_RATIO, CADENCE_STEP)
     note_events: list[dict[str, int]] = []
-    for chord_index, chord in enumerate(CADENCE_CHORDS):
+    for chord_index, chord in enumerate(chords):
         start_tick = chord_index * TICKS_PER_QUARTER
         velocity = 92 if chord_index < 3 else 98
         for pitch_name in chord:
@@ -515,9 +550,25 @@ def library_tonics(library: list[dict[str, Any]]) -> list[str]:
     return sorted(tonics, key=midi_from_name)
 
 
+def library_cadences(library: list[dict[str, Any]]) -> list[tuple[str, str, str]]:
+    """Distinct (key, mode, clef) contexts needing their own cadence clip."""
+    seen: set[tuple[str, str, str]] = set()
+    for mel in library:
+        seen.add(
+            (
+                str(mel.get("key", "C")),
+                str(mel.get("mode", "major")),
+                str(mel.get("clef", "treble")),
+            )
+        )
+    return sorted(seen)
+
+
 def library_audio_basenames(library: list[dict[str, Any]]) -> list[str]:
     """Every audio basename an arbitrary generated library needs."""
     names = [CADENCE_FILENAME]
+    for key_name, mode, clef in library_cadences(library):
+        names.append(cadence_filename_for(key_name, mode, clef))
     for pitch in library_note_pitches(library):
         names.append(note_clip_filename(pitch))
     for tonic in library_tonics(library):
@@ -555,8 +606,12 @@ def build_library_audio(assets_dir: Path, library: list[dict[str, Any]]) -> list
         temp_dir = Path(tmp)
         render_targets: dict[str, tuple[Path, Path]] = {}
 
-        cadence_midi, cadence_wav = _build_cadence_clip(temp_dir)
-        render_targets[CADENCE_FILENAME] = (cadence_midi, cadence_wav)
+        for key_name, mode, clef in library_cadences(library):
+            dest = cadence_filename_for(key_name, mode, clef)
+            if dest not in render_targets:
+                render_targets[dest] = _build_cadence_clip(
+                    temp_dir, cadence_chords_for(key_name, mode, clef), dest[:-4]
+                )
 
         for pitch in library_note_pitches(library):
             dest = note_clip_filename(pitch)

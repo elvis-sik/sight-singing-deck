@@ -40,11 +40,26 @@ from sight_singing.theory.scales import (
 _DEFAULT_DURATION = "q"
 
 
-def _melody_id(stage_id: str, degrees_idx: tuple[int, ...]) -> str:
-    """Stable, content-derived id (regenerating the library keeps ids fixed)."""
+def _melody_id(
+    stage_id: str,
+    degrees_idx: tuple[int, ...],
+    key_name: str = "C",
+    mode: str = "major",
+    clef: str = "treble",
+) -> str:
+    """Stable, content-derived id (regenerating the library keeps ids fixed).
+
+    The default C-major/treble context keeps bare ids (stable across builds); any
+    other key/mode/clef gets a short context suffix so the same melody realized in
+    different keys/clefs stays globally unique.
+    """
     blob = f"{stage_id}:{','.join(str(d) for d in degrees_idx)}"
     digest = hashlib.sha1(blob.encode("utf-8")).hexdigest()[:8]
-    return f"{stage_id.lower()}_{digest}"
+    base = f"{stage_id.lower()}_{digest}"
+    if (key_name, mode, clef) == ("C", "major", "treble"):
+        return base
+    tag = f"{key_name}{'maj' if mode == 'major' else 'min'}{clef[0]}".lower()
+    return f"{base}_{tag}"
 
 
 def realize_stage_melody(
@@ -72,7 +87,7 @@ def realize_stage_melody(
     solfege = [str(item["solfege"]) for item in realized]
 
     return {
-        "id": _melody_id(stage.id, degrees_idx),
+        "id": _melody_id(stage.id, degrees_idx, key_name, mode, clef),
         "stage_id": stage.id,
         "phase": stage.phase,
         "title": stage.title,
@@ -101,17 +116,22 @@ def build_library(
     key_name: str = "C",
     mode: str = "major",
     clef: str = "treble",
+    per_stage: int | None = None,
 ) -> list[dict[str, object]]:
     """Generate + realize every stage into an ordered melody library.
 
     Melodies keep curriculum order (stage by stage, quality-ranked within a
-    stage), which is also a sensible default study order.
+    stage), which is also a sensible default study order. ``per_stage`` caps the
+    melodies kept per stage (for bounded transfer tracks in extra keys/clefs).
     """
     stages = list(stages if stages is not None else MAJOR_STAGES)
     library: list[dict[str, object]] = []
     seen_ids: set[str] = set()
     for stage in stages:
-        for degrees_idx in generate_stage(stage):
+        kept = generate_stage(stage)
+        if per_stage is not None:
+            kept = kept[:per_stage]
+        for degrees_idx in kept:
             record = realize_stage_melody(
                 stage, degrees_idx, key_name=key_name, mode=mode, clef=clef
             )

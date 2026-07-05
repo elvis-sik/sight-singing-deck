@@ -6,7 +6,7 @@ import json
 from typing import Any
 
 from sight_singing.audio_assets import (
-    CADENCE_FILENAME,
+    cadence_filename_for,
     drone_clip_filename,
     melody_clip_filename_for,
     note_clip_filename,
@@ -59,6 +59,7 @@ def melody_to_card_fields(melody: dict[str, Any]) -> dict[str, str]:
     )
     tonic_note = str(melody.get("tonic", "C4"))
 
+    cadence_file = cadence_filename_for(key_name, mode, clef)
     melody_file = melody_clip_filename_for(
         mid, [str(n) for n in notes], [str(d) for d in durations]
     )
@@ -85,7 +86,7 @@ def melody_to_card_fields(melody: dict[str, Any]) -> dict[str, str]:
         },
         "audio": {
             "melody": melody_file,
-            "cadence": CADENCE_FILENAME,
+            "cadence": cadence_file,
             "first": first_file,
             "tonic": tonic_file,
             "drone": drone_file,
@@ -96,12 +97,12 @@ def melody_to_card_fields(melody: dict[str, Any]) -> dict[str, str]:
         "MelodyJSON": json.dumps(payload, separators=(",", ":")),
         "StageID": stage_id,
         "MelodyID": mid,
-        "CadenceAudio": f"[sound:{CADENCE_FILENAME}]",
+        "CadenceAudio": f"[sound:{cadence_file}]",
         "FirstNoteAudio": f"[sound:{first_file}]",
         "TonicAudio": f"[sound:{tonic_file}]",
         "MelodyAudio": f"[sound:{melody_file}]",
         "DroneAudio": f"[sound:{drone_file}]",
-        "CadenceAudioFile": CADENCE_FILENAME,
+        "CadenceAudioFile": cadence_file,
         "FirstNoteAudioFile": first_file,
         "TonicAudioFile": tonic_file,
         "MelodyAudioFile": melody_file,

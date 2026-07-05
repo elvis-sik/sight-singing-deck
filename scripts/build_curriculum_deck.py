@@ -58,12 +58,28 @@ class Track:
     key_name: str  # tonic letter, e.g. "C" / "A"
     mode: str  # default realization mode
     deck_id_base: int  # per-stage deck ids start here
+    clef: str = "treble"
+    per_stage: int | None = None  # cap melodies per stage (bounded transfer tracks)
 
+
+# Bounded transfer tracks: the same function-first material in other keys and in
+# bass clef, so the learner practises movable-do transposition and clef reading
+# without multiplying the whole deck. A curated stage spread, capped per stage.
+_TRANSFER_STAGE_IDS = ["M0_3", "M2", "M5", "M7", "M9"]
+_TRANSFER_STAGES = [STAGES_BY_ID[i] for i in _TRANSFER_STAGE_IDS]
 
 TRACKS = [
     Track("Major", MAJOR_STAGES, "C", "major", DECK_ID + 100),
     Track("Minor", MINOR_STAGES, "A", "natural_minor", DECK_ID + 200),
     Track("Intervals", INTERVAL_STAGES, "C", "major", DECK_ID + 300),
+    Track("Keys · G major", _TRANSFER_STAGES, "G", "major", DECK_ID + 500,
+          per_stage=6),
+    Track("Keys · F major", _TRANSFER_STAGES, "F", "major", DECK_ID + 550,
+          per_stage=6),
+    Track("Clef · Bass (C major)", _TRANSFER_STAGES, "C", "major", DECK_ID + 600,
+          clef="bass", per_stage=6),
+    Track("Clef · Bass (A minor)", _TRANSFER_STAGES, "A", "natural_minor",
+          DECK_ID + 650, clef="bass", per_stage=6),
 ]
 
 # Error-detection track: a curated spread of stages, altering one note per base
@@ -79,7 +95,18 @@ def _deck_name(base: str, track: str, index: int, stage_id: str, title: str) -> 
 
 
 def _track_library(track: Track) -> list[dict[str, object]]:
-    return build_library(track.stages, key_name=track.key_name, mode=track.mode)
+    return build_library(
+        track.stages,
+        key_name=track.key_name,
+        mode=track.mode,
+        clef=track.clef,
+        per_stage=track.per_stage,
+    )
+
+
+def _track_tag(track: Track) -> str:
+    slug = track.key.lower().split("·")[0].strip().replace(" ", "_")
+    return f"track::{slug}"
 
 
 def build(out_path: Path, base_deck_name: str, assets_dir: Path, limit: int | None) -> int:
@@ -134,7 +161,7 @@ def build(out_path: Path, base_deck_name: str, assets_dir: Path, limit: int | No
             note = genanki.Note(
                 model=model,
                 fields=[fields[f] for f in FIELD_NAMES],
-                tags=[str(t) for t in tags] + [f"track::{track.key.lower()}"],
+                tags=[str(t) for t in tags] + [_track_tag(track)],
             )
             decks[stage_id].add_note(note)
         ordered_decks.extend(decks[s.id] for s in track.stages if s.id in decks)
