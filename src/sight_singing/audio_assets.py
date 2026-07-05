@@ -14,6 +14,7 @@ from typing import Any
 
 from sight_singing.midi_writer import TICKS_PER_QUARTER, write_midi
 from sight_singing.melodies import MELODIES
+from sight_singing.theory.scales import midi_from_name
 
 ROOT = Path(__file__).resolve().parents[2]
 PCM_SAMPLE_RATE = 44_100
@@ -141,8 +142,15 @@ def melody_clip_notes_durations(melody: dict[str, Any]) -> tuple[list[str], list
     return notes, durations
 
 
-def melody_clip_filename(melody_id: str) -> str:
-    notes, durations = melody_clip_notes_durations(_melody_by_id(melody_id))
+def melody_clip_filename_for(
+    melody_id: str, notes: list[str], durations: list[str]
+) -> str:
+    """Content-hashed melody clip name from explicit notes/durations.
+
+    Use this for generated melodies (not in the hardcoded MELODIES list).
+    """
+    notes = [str(n) for n in notes]
+    durations = [str(d) for d in durations]
     digest = _clip_hash(
         {
             "kind": "melody",
@@ -153,6 +161,11 @@ def melody_clip_filename(melody_id: str) -> str:
         }
     )
     return f"_m_{melody_id}_{digest}.mp3"
+
+
+def melody_clip_filename(melody_id: str) -> str:
+    notes, durations = melody_clip_notes_durations(_melody_by_id(melody_id))
+    return melody_clip_filename_for(melody_id, notes, durations)
 
 
 def note_clip_filename(note_name: str) -> str:
@@ -182,10 +195,12 @@ def _note_event(
     duration_ticks: int,
     velocity: int = 96,
 ) -> dict[str, int]:
-    try:
-        pitch = NOTE_TO_MIDI[pitch_name]
-    except KeyError as exc:
-        raise ValueError(f"Unsupported pitch name: {pitch_name}") from exc
+    pitch = NOTE_TO_MIDI.get(pitch_name)
+    if pitch is None:
+        # Any pitch (arbitrary key/octave) — compute MIDI from the note name.
+        from sight_singing.theory.scales import midi_from_name
+
+        pitch = midi_from_name(pitch_name)
     return {
         "pitch": pitch,
         "start_tick": start_tick,
@@ -426,3 +441,97 @@ def media_audio_basenames() -> list[str]:
     for melody in MELODIES:
         names.append(melody_clip_filename(str(melody["id"])))
     return names
+
+
+def library_note_pitches(library: list[dict[str, Any]]) -> list[str]:
+    """Distinct sounded pitches across the library plus every tonic (sorted)."""
+    pitches: set[str] = set()
+    for mel in library:
+        for note in mel["notes"]:
+            if note not in (None, "rest"):
+                pitches.add(str(note))
+        tonic = mel.get("tonic")
+        if tonic:
+            pitches.add(str(tonic))
+    return sorted(pitches, key=midi_from_name)
+
+
+def library_audio_basenames(library: list[dict[str, Any]]) -> list[str]:
+    """Every audio basename an arbitrary generated library needs."""
+    names = [CADENCE_FILENAME]
+    for pitch in library_note_pitches(library):
+        names.append(note_clip_filename(pitch))
+    for mel in library:
+        names.append(
+            melody_clip_filename_for(
+                str(mel["id"]),
+                [str(n) for n in mel["notes"]],
+                [str(d) for d in mel["durations"]],
+            )
+        )
+    # Dedup while preserving order (two melodies can share a clip).
+    seen: set[str] = set()
+    out: list[str] = []
+    for name in names:
+        if name not in seen:
+            seen.add(name)
+            out.append(name)
+    return out
+
+
+def build_library_audio(assets_dir: Path, library: list[dict[str, Any]]) -> list[Path]:
+    """Render every clip an arbitrary generated melody library needs.
+
+    Renders the shared C-major cadence, one note clip per distinct sounded
+    pitch (covering first-note and tonic clues), and one clip per melody.
+    Melody clips are deduplicated by content hash, so identical melodies in
+    different keys/stages render once.
+    """
+    assets_dir.mkdir(parents=True, exist_ok=True)
+    _require_render_tools()
+
+    with tempfile.TemporaryDirectory(prefix="ss-piano-render-") as tmp:
+        temp_dir = Path(tmp)
+        render_targets: dict[str, tuple[Path, Path]] = {}
+
+        cadence_midi, cadence_wav = _build_cadence_clip(temp_dir)
+        render_targets[CADENCE_FILENAME] = (cadence_midi, cadence_wav)
+
+        for pitch in library_note_pitches(library):
+            dest = note_clip_filename(pitch)
+            if dest not in render_targets:
+                render_targets[dest] = _build_note_clip(temp_dir, pitch)
+
+        for mel in library:
+            notes = [str(n) for n in mel["notes"]]
+            durations = [str(d) for d in mel["durations"]]
+            dest = melody_clip_filename_for(str(mel["id"]), notes, durations)
+            if dest not in render_targets:
+                # Name the temp files by dest stem to avoid collisions across
+                # melodies that happen to share an id prefix.
+                render_targets[dest] = _build_melody_clip(
+                    temp_dir, dest[:-4], notes, durations
+                )
+
+        out: list[Path] = []
+        for dest_name, (midi_path, wav_path) in render_targets.items():
+            _render_wav_with_fluidsynth(midi_path, wav_path)
+            _trim_rendered_wav(wav_path)
+            dest_path = assets_dir / dest_name
+            _encode_mp3(wav_path, dest_path)
+            out.append(dest_path)
+    return out
+
+
+def _require_render_tools() -> None:
+    fluidsynth_bin = _tool_path(
+        "FLUIDSYNTH_BIN", "fluidsynth", Path("/opt/homebrew/bin/fluidsynth")
+    )
+    lame_bin = _tool_path("LAME_BIN", "lame", Path("/opt/homebrew/bin/lame"))
+    soundfont = _soundfont_path()
+    if not fluidsynth_bin.is_file():
+        raise FileNotFoundError(f"Missing FluidSynth binary: {fluidsynth_bin}")
+    if not lame_bin.is_file():
+        raise FileNotFoundError(f"Missing LAME binary: {lame_bin}")
+    if not soundfont.is_file():
+        raise FileNotFoundError(f"Missing soundfont: {soundfont}")
