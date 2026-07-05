@@ -22,6 +22,7 @@ from __future__ import annotations
 import hashlib
 
 from sight_singing.curriculum.stages import MAJOR_STAGES, Stage
+from sight_singing.generate.errors import make_error_case
 from sight_singing.generate.melody_gen import generate_stage
 from sight_singing.theory.scales import (
     key as make_key,
@@ -29,6 +30,7 @@ from sight_singing.theory.scales import (
 from sight_singing.theory.scales import (
     realize_note,
     realize_sequence,
+    solfege,
     tonic_octave_for,
 )
 
@@ -118,3 +120,89 @@ def build_library(
             seen_ids.add(str(record["id"]))
             library.append(record)
     return library
+
+
+def build_error_library(
+    stages: list[Stage],
+    *,
+    key_name: str = "C",
+    mode: str = "major",
+    clef: str = "treble",
+    per_stage: int = 8,
+) -> list[dict[str, object]]:
+    """Error-detection cases: take base melodies and alter one note each.
+
+    Each record carries the ``written`` melody record (for notation + the
+    "as written" clip), the realized ``played_notes`` (the wrong performance),
+    the ``error_index``, a reveal ``error_label``, and Anki ``tags``.
+    """
+    k = make_key(key_name, mode)
+    out: list[dict[str, object]] = []
+    for stage in stages:
+        made = 0
+        for degrees_idx in generate_stage(stage):
+            if made >= per_stage:
+                break
+            case = make_error_case(tuple(degrees_idx))
+            if case is None:
+                continue
+            written = realize_stage_melody(
+                stage, degrees_idx, key_name=key_name, mode=mode, clef=clef
+            )
+            played_idx = list(case["played"])  # type: ignore[call-overload]
+            played_seq = realize_sequence(k, played_idx, clef)
+            played_notes = [str(item["note"]) for item in played_seq]
+            i = int(str(case["error_index"]))
+            w_idx = int(str(case["written_index"]))
+            p_idx = int(str(case["played_index"]))
+            written_notes = written["notes"]
+            assert isinstance(written_notes, list)
+            w_pitch = str(written_notes[i])
+            p_pitch = played_notes[i]
+            label = (
+                f"Note {i + 1}: written {solfege(k, w_idx)} ({w_pitch}), "
+                f"played {solfege(k, p_idx)} ({p_pitch})."
+            )
+            made += 1
+            out.append(
+                {
+                    "id": str(written["id"]),
+                    "stage_id": stage.id,
+                    "phase": stage.phase,
+                    "title": stage.title,
+                    "written": written,
+                    "played_notes": played_notes,
+                    "error_index": i,
+                    "error_label": label,
+                    "tags": [
+                        "sight_singing",
+                        "track::errors",
+                        f"phase::{stage.phase}",
+                        f"stage::{stage.id}",
+                        f"key::{key_name}_{mode}",
+                    ],
+                }
+            )
+    return out
+
+
+def error_audio_entries(error_lib: list[dict[str, object]]) -> list[dict[str, object]]:
+    """Flatten error records into melody dicts for ``build_library_audio``.
+
+    Emits both the written clip (from the written record) and the played
+    (altered) clip under the ``<id>_e`` id that ``card_data`` references.
+    """
+    entries: list[dict[str, object]] = []
+    for rec in error_lib:
+        written = rec["written"]
+        assert isinstance(written, dict)
+        entries.append(written)
+        entries.append(
+            {
+                "id": str(written["id"]) + "_e",
+                "notes": rec["played_notes"],
+                "durations": written["durations"],
+                "tonic": written["tonic"],
+            }
+        )
+    return entries

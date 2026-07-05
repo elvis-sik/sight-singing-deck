@@ -1,0 +1,17 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../assets/card_styles.css">
+<style>body{font-family:sans-serif;padding:16px} .row{margin:8px 0}</style></head><body>
+<h3>Error-detection card harness</h3>
+<p>Tap a note (front). Click <b>Reveal</b> to see the wrong note (back).</p>
+<div class="ss-wrap">
+<div id="melody-data" style="display:none;">{"version":2,"clef":"treble","key":"C","mode":"major","timeSig":"4/4","notes":["B3","C4","D4","C4"],"durations":["q","q","q","q"],"bars":[{"events":[{"kind":"note","pitch":"B3","duration":"q"},{"kind":"note","pitch":"C4","duration":"q"},{"kind":"note","pitch":"D4","duration":"q"},{"kind":"note","pitch":"C4","duration":"q"}]}],"degrees":[7,1,2,1],"supports":{"tonic":"C4","firstNote":"B3","cadenceKey":"C"},"audio":{"melody":"_m_m4_55062228_8274db272b.mp3","cadence":"_cadence_C_6cabcc9169.mp3","first":"_n_B3_fccf73512f.mp3","tonic":"_n_C4_0a8c6a0bc1.mp3","drone":"_d_C4_9c8bc4f17b.mp3"}}</div>
+<div id="error-index" style="display:none;">1</div>
+<div class="ss-panel"><div id="notation" class="ss-notation"></div></div>
+<div id="error-verdict" class="ss-verdict ss-verdict-none"></div>
+<div id="answer-info" class="row">Note 2: written do (C4), played mi (E4).</div>
+<button onclick="var m=document.createElement('div');m.id='error-back';document.body.appendChild(m);window.SightSingingErrorDetect();">Reveal</button>
+</div>
+<script src="../assets/_vexflow.js"></script>
+<script src="../assets/_renderer.js"></script>
+<script src="../assets/_errordetect.js"></script>
+</body></html>

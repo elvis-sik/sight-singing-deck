@@ -27,14 +27,26 @@ for p in (_SRC, _SCRIPTS):
 import genanki
 
 from build_deck import write_package  # reuse apkg writer + autoplay-off
-from sight_singing.anki_model import DECK_ID, FIELD_NAMES, MODEL_NAME, make_model
+from sight_singing.anki_model import (
+    DECK_ID,
+    ERROR_FIELD_NAMES,
+    FIELD_NAMES,
+    MODEL_NAME,
+    make_error_model,
+    make_model,
+)
 from sight_singing.audio_assets import build_library_audio, library_audio_basenames
-from sight_singing.build.library import build_library
-from sight_singing.card_data import melody_to_card_fields
+from sight_singing.build.library import (
+    build_error_library,
+    build_library,
+    error_audio_entries,
+)
+from sight_singing.card_data import error_to_card_fields, melody_to_card_fields
 from sight_singing.curriculum.stages import (
     INTERVAL_STAGES,
     MAJOR_STAGES,
     MINOR_STAGES,
+    STAGES_BY_ID,
     Stage,
 )
 
@@ -53,6 +65,12 @@ TRACKS = [
     Track("Minor", MINOR_STAGES, "A", "natural_minor", DECK_ID + 200),
     Track("Intervals", INTERVAL_STAGES, "C", "major", DECK_ID + 300),
 ]
+
+# Error-detection track: a curated spread of stages, altering one note per base
+# melody. (Its own note type, so these never duplicate the melody cards.)
+_ERROR_STAGE_IDS = ["M2", "M4", "M5", "M7", "M8", "N2", "N4", "N5"]
+ERROR_DECK_ID_BASE = DECK_ID + 400
+ERROR_PER_STAGE = 8
 
 
 def _deck_name(base: str, track: str, index: int, stage_id: str, title: str) -> str:
@@ -74,8 +92,25 @@ def build(out_path: Path, base_deck_name: str, assets_dir: Path, limit: int | No
         track_libraries.append((track, lib))
 
     full_library = [rec for _, lib in track_libraries for rec in lib]
-    print(f"Rendering audio for {len(full_library)} melodies …", flush=True)
-    build_library_audio(assets_dir, full_library)
+
+    # Error-detection library (major stages in C, minor stages in A minor).
+    major_err = [STAGES_BY_ID[i] for i in _ERROR_STAGE_IDS if i.startswith("M")]
+    minor_err = [STAGES_BY_ID[i] for i in _ERROR_STAGE_IDS if i.startswith("N")]
+    error_lib = build_error_library(
+        major_err, key_name="C", mode="major", per_stage=ERROR_PER_STAGE
+    ) + build_error_library(
+        minor_err, key_name="A", mode="natural_minor", per_stage=ERROR_PER_STAGE
+    )
+    if limit is not None:
+        error_lib = error_lib[:limit]
+
+    audio_library = full_library + error_audio_entries(error_lib)
+    print(
+        f"Rendering audio for {len(full_library)} melodies "
+        f"+ {len(error_lib)} error cases …",
+        flush=True,
+    )
+    build_library_audio(assets_dir, audio_library)
 
     model = make_model()
     ordered_decks: list[genanki.Deck] = []
@@ -104,9 +139,46 @@ def build(out_path: Path, base_deck_name: str, assets_dir: Path, limit: int | No
             decks[stage_id].add_note(note)
         ordered_decks.extend(decks[s.id] for s in track.stages if s.id in decks)
 
+    # Error-detection track (its own note type).
+    if error_lib:
+        err_model = make_error_model()
+        err_order = {sid: i for i, sid in enumerate(_ERROR_STAGE_IDS)}
+        err_decks: dict[str, genanki.Deck] = {}
+        for rec in error_lib:
+            sid = str(rec["stage_id"])
+            if sid not in err_decks:
+                idx = err_order.get(sid, 99)
+                name = _deck_name(
+                    base_deck_name, "Errors", idx, sid, str(rec["title"])
+                )
+                err_decks[sid] = genanki.Deck(
+                    deck_id=ERROR_DECK_ID_BASE + idx, name=name
+                )
+            written = rec["written"]
+            assert isinstance(written, dict)
+            played = rec["played_notes"]
+            assert isinstance(played, list)
+            fields = error_to_card_fields(
+                written,
+                [str(n) for n in played],
+                int(rec["error_index"]),  # type: ignore[call-overload]
+                str(rec["error_label"]),
+            )
+            tags = rec["tags"]
+            assert isinstance(tags, list)
+            note = genanki.Note(
+                model=err_model,
+                fields=[fields[f] for f in ERROR_FIELD_NAMES],
+                tags=[str(t) for t in tags],
+            )
+            err_decks[sid].add_note(note)
+        ordered_decks.extend(
+            err_decks[sid] for sid in _ERROR_STAGE_IDS if sid in err_decks
+        )
+
     pkg = genanki.Package(ordered_decks)
 
-    expected = library_audio_basenames(full_library)
+    expected = library_audio_basenames(audio_library)
     media_files: list[str] = []
     for bn in expected:
         clip = assets_dir / bn
@@ -117,7 +189,7 @@ def build(out_path: Path, base_deck_name: str, assets_dir: Path, limit: int | No
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     write_package(pkg, out_path)
-    return len(full_library)
+    return len(full_library) + len(error_lib)
 
 
 def main(argv: list[str]) -> int:
@@ -131,7 +203,7 @@ def main(argv: list[str]) -> int:
     )
     args = ap.parse_args(argv)
     count = build(args.out, args.deck_name, args.assets, args.limit)
-    print(f"Wrote {args.out} ({count} melodies, model '{MODEL_NAME}')")
+    print(f"Wrote {args.out} ({count} notes, model '{MODEL_NAME}')")
     return 0
 
 

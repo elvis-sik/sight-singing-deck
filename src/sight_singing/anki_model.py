@@ -22,6 +22,7 @@ _CSS_PATH = _ASSETS_DIR / "card_styles.css"
 _VEXFLOW_PATH = _ASSETS_DIR / "_vexflow.js"
 _RENDERER_PATH = _ASSETS_DIR / "_renderer.js"
 _TRANSCRIPTION_PATH = _ASSETS_DIR / "_transcription.js"
+_ERRORDETECT_PATH = _ASSETS_DIR / "_errordetect.js"
 
 FIELD_NAMES = [
     "MelodyJSON",
@@ -64,6 +65,10 @@ def transcription_inline() -> str:
     return _inline_script(_TRANSCRIPTION_PATH)
 
 
+def errordetect_inline() -> str:
+    return _inline_script(_ERRORDETECT_PATH)
+
+
 def vexflow_inline() -> str:
     """Inline the (slim, minified) VexFlow bundle as a <script> tag.
 
@@ -103,6 +108,8 @@ if (window.Audio != undefined) {
         return window.sightSingingMelodyFile;
       case "drone":
         return window.sightSingingDroneFile;
+      case "written":
+        return window.sightSingingWrittenFile;
       default:
         return "";
     }
@@ -192,6 +199,10 @@ if (window.Audio != undefined) {
 
   function playMelody() {
     return playSightSingingKey("melody");
+  }
+
+  function playWritten() {
+    return playSightSingingKey("written");
   }
 
   (function () {
@@ -502,13 +513,96 @@ def _fill(template: str) -> str:
         .replace("__VEXFLOW_INLINE__", vexflow_inline())
         .replace("__RENDERER_INLINE__", renderer_inline())
         .replace("__TRANSCRIPTION_INLINE__", transcription_inline())
+        .replace("__ERRORDETECT_INLINE__", errordetect_inline())
     )
+
+
+# --- Error-detection note type ------------------------------------------------
+# Its own model (a separate note type) so it never turns the Sing/Transcribe
+# notes into extra cards. One card: hear the played (altered) melody against the
+# written score, find the wrong note.
+ERROR_MODEL_ID = 2_948_817_016
+ERROR_MODEL_NAME = "Sight Singing — Error Detection (v1)"
+
+ERROR_FIELD_NAMES = [
+    "MelodyJSON",       # the WRITTEN melody (notation)
+    "StageID",
+    "MelodyID",
+    "ErrorIndex",       # 0-based index of the wrong note
+    "ErrorLabel",       # human reveal, e.g. "Note 2: written mi (E4), played re (D4)"
+    "CadenceAudioFile",
+    "FirstNoteAudioFile",
+    "TonicAudioFile",
+    "DroneAudioFile",
+    "MelodyAudioFile",  # the PLAYED (altered) clip — the wrong performance
+    "WrittenAudioFile",  # the correct clip — "play as written"
+]
+
+ERROR_FRONT_TEMPLATE = """
+{{#MelodyAudioFile}}
+<script>
+window.sightSingingCadenceFile = "{{text:CadenceAudioFile}}";
+window.sightSingingFirstNoteFile = "{{text:FirstNoteAudioFile}}";
+window.sightSingingTonicFile = "{{text:TonicAudioFile}}";
+window.sightSingingDroneFile = "{{text:DroneAudioFile}}";
+window.sightSingingMelodyFile = "{{text:MelodyAudioFile}}";
+window.sightSingingWrittenFile = "{{text:WrittenAudioFile}}";
+</script>
+{{/MelodyAudioFile}}
+<script>
+window.sightSingingAutoplayFront = [
+  "tonic",
+  "melody",
+];
+window.sightSingingAutoplayBack = [
+  "melody",
+];
+</script>
+__AUDIO_SCRIPT__
+__BOOT_HEAD__
+
+<div class="ss-wrap">
+<div id="melody-data" style="display:none;">{{MelodyJSON}}</div>
+<div id="error-index" style="display:none;">{{ErrorIndex}}</div>
+<div class="ss-meta" id="melody-meta" data-ss-badge="Find the error"></div>
+<div class="ss-panel">
+  <div id="notation" class="ss-notation"></div>
+</div>
+<div class="ss-controls ss-if-audio">
+  <button type="button" class="ss-btn" onclick="return playCadence();">__ICON_CHORD__<span>Cadence</span></button>
+  <button type="button" class="ss-btn" onclick="return playTonic();">__ICON_FORK__<span>Tonic</span></button>
+  <button type="button" class="ss-btn" onclick="return playMelody();">__ICON_PLAY__<span>Play (has 1 wrong note)</span></button>
+</div>
+<p class="ss-prompt">One note is played differently from the score. Tap the wrong note.</p>
+</div>
+__VEXFLOW_INLINE__
+__RENDERER_INLINE__
+__ERRORDETECT_INLINE__
+__BOOT_TAIL__
+""".strip()
+
+ERROR_BACK_TEMPLATE = """
+<div id="error-back">{{FrontSide}}</div>
+<hr id="answer" class="ss-hr">
+<div class="ss-wrap">
+<div id="error-verdict" class="ss-verdict ss-verdict-none"></div>
+<div id="answer-info" class="ss-answer-info">{{ErrorLabel}}</div>
+<div class="ss-controls ss-if-audio">
+  <button type="button" class="ss-btn" onclick="return playWritten();">__ICON_NOTE__<span>As written</span></button>
+  <button type="button" class="ss-btn" onclick="return playMelody();">__ICON_PLAY__<span>As heard</span></button>
+</div>
+</div>
+<script>window.SightSingingErrorDetect && window.SightSingingErrorDetect();</script>
+__BOOT_TAIL__
+""".strip()
 
 
 FRONT_TEMPLATE = _fill(FRONT_TEMPLATE)
 BACK_TEMPLATE = _fill(BACK_TEMPLATE)
 TRANSCRIBE_FRONT_TEMPLATE = _fill(TRANSCRIBE_FRONT_TEMPLATE)
 TRANSCRIBE_BACK_TEMPLATE = _fill(TRANSCRIBE_BACK_TEMPLATE)
+ERROR_FRONT_TEMPLATE = _fill(ERROR_FRONT_TEMPLATE)
+ERROR_BACK_TEMPLATE = _fill(ERROR_BACK_TEMPLATE)
 
 
 def make_model() -> genanki.Model:
@@ -526,6 +620,22 @@ def make_model() -> genanki.Model:
                 "name": "Transcribe",
                 "qfmt": TRANSCRIBE_FRONT_TEMPLATE,
                 "afmt": TRANSCRIBE_BACK_TEMPLATE,
+            },
+        ],
+        css=model_css(),
+    )
+
+
+def make_error_model() -> genanki.Model:
+    return genanki.Model(
+        model_id=ERROR_MODEL_ID,
+        name=ERROR_MODEL_NAME,
+        fields=[{"name": n} for n in ERROR_FIELD_NAMES],
+        templates=[
+            {
+                "name": "FindError",
+                "qfmt": ERROR_FRONT_TEMPLATE,
+                "afmt": ERROR_BACK_TEMPLATE,
             },
         ],
         css=model_css(),

@@ -73,10 +73,17 @@ from constraint specs (no hand-authored melodies). The pipeline lives under
   score → contour-signature diverse sampling.
 - `build/library.py` — realize stages into card-ready melody records.
 
-The deck ships three tracks as subdecks — **Major** (C), **Minor** (A, the
-relative minor), and **Intervals** — each split into per-stage subdecks in
-curriculum order. Every melody yields a **Sing** card and a **Transcribe**
-(dictation) card.
+The deck ships four tracks as subdecks — **Major** (C), **Minor** (A, the
+relative minor), **Intervals**, and **Errors** — each split into per-stage
+subdecks in curriculum order. Every melody yields a **Sing** card and a
+**Transcribe** (dictation) card.
+
+The **Errors** track is a separate note type (`make_error_model`): you see the
+written score and hear a performance with exactly one in-key wrong note, and tap
+the note that sounds wrong. `generate/errors.py` alters one note of a base
+melody; the back reveals the wrong note in red and grades your tap. The tap +
+reveal live in `assets/_errordetect.js` (both drive the renderer's per-note
+`styles` option; a defensive dep-poll bootstrap keeps it robust on iOS/Android).
 
 **Audio clues** (buttons on the card, plus a per-side autoplay config block in
 the templates): Cadence, First note, Tonic, and a sustained **Drone** (an organ

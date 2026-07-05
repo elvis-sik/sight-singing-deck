@@ -102,3 +102,46 @@ def melody_to_card_fields(melody: dict[str, Any]) -> dict[str, str]:
         "MelodyAudioFile": melody_file,
         "DroneAudioFile": drone_file,
     }
+
+
+def error_to_card_fields(
+    written: dict[str, Any],
+    played_notes: list[str],
+    error_index: int,
+    error_label: str,
+) -> dict[str, str]:
+    """Serialize an error-detection note.
+
+    ``written`` is a melody record (notation + context) as consumed by
+    ``melody_to_card_fields``; ``played_notes`` is the altered note sequence
+    (same durations) whose clip is what the learner hears.
+    """
+    base = melody_to_card_fields(written)
+    durations = written.get("durations", ["q"] * len(written["notes"]))
+    played_file = melody_clip_filename_for(
+        str(written["id"]) + "_e",
+        [str(n) for n in played_notes],
+        [str(d) for d in durations],
+    )
+    return {
+        "MelodyJSON": base["MelodyJSON"],
+        "StageID": base["StageID"],
+        "MelodyID": base["MelodyID"],
+        "ErrorIndex": str(error_index),
+        "ErrorLabel": error_label,
+        "CadenceAudioFile": base["CadenceAudioFile"],
+        "FirstNoteAudioFile": base["FirstNoteAudioFile"],
+        "TonicAudioFile": base["TonicAudioFile"],
+        "DroneAudioFile": base["DroneAudioFile"],
+        "MelodyAudioFile": played_file,  # the wrong performance (heard)
+        "WrittenAudioFile": base["MelodyAudioFile"],  # the correct melody
+    }
+
+
+def error_played_clip_name(written_id: str, played_notes: list[str], durations: list[str]) -> str:
+    """The played (altered) clip filename for an error case — for audio prep."""
+    return melody_clip_filename_for(
+        str(written_id) + "_e",
+        [str(n) for n in played_notes],
+        [str(d) for d in durations],
+    )
