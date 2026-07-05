@@ -528,52 +528,51 @@ ERROR_FIELD_NAMES = [
     "MelodyJSON",       # the WRITTEN melody (notation)
     "StageID",
     "MelodyID",
-    "ErrorIndex",       # 0-based index of the wrong note
-    "ErrorLabel",       # human reveal, e.g. "Note 2: written mi (E4), played re (D4)"
+    "ErrorVariants",    # JSON [{f: clip, i: wrong-note index, label}] — one is
+    #                     picked at random each view (no fixed wrong-note spot)
     "CadenceAudioFile",
     "FirstNoteAudioFile",
     "TonicAudioFile",
     "DroneAudioFile",
-    "MelodyAudioFile",  # the PLAYED (altered) clip — the wrong performance
     "WrittenAudioFile",  # the correct clip — "play as written"
 ]
 
 ERROR_FRONT_TEMPLATE = """
-{{#MelodyAudioFile}}
+{{#WrittenAudioFile}}
 <script>
 window.sightSingingCadenceFile = "{{text:CadenceAudioFile}}";
 window.sightSingingFirstNoteFile = "{{text:FirstNoteAudioFile}}";
 window.sightSingingTonicFile = "{{text:TonicAudioFile}}";
 window.sightSingingDroneFile = "{{text:DroneAudioFile}}";
-window.sightSingingMelodyFile = "{{text:MelodyAudioFile}}";
 window.sightSingingWrittenFile = "{{text:WrittenAudioFile}}";
 </script>
-{{/MelodyAudioFile}}
+{{/WrittenAudioFile}}
 <script>
+/* The performance clue ("melody") is a randomly chosen wrong-note variant; the
+   error-detect script sets its file synchronously before this autoplay fires. */
 window.sightSingingAutoplayFront = [
   "tonic",
   "melody",
 ];
-window.sightSingingAutoplayBack = [
-  "melody",
-];
+window.sightSingingAutoplayBack = [];
 </script>
 __AUDIO_SCRIPT__
 __BOOT_HEAD__
 
 <div class="ss-wrap">
 <div id="melody-data" style="display:none;">{{MelodyJSON}}</div>
-<div id="error-index" style="display:none;">{{ErrorIndex}}</div>
+<div id="error-variants" style="display:none;">{{ErrorVariants}}</div>
 <div class="ss-meta" id="melody-meta" data-ss-badge="Find the error"></div>
 <div class="ss-panel">
   <div id="notation" class="ss-notation"></div>
 </div>
+<div id="error-verdict-front" class="ss-verdict ss-verdict-none" style="display:none;"></div>
 <div class="ss-controls ss-if-audio">
   <button type="button" class="ss-btn" onclick="return playCadence();">__ICON_CHORD__<span>Cadence</span></button>
   <button type="button" class="ss-btn" onclick="return playTonic();">__ICON_FORK__<span>Tonic</span></button>
   <button type="button" class="ss-btn" onclick="return playMelody();">__ICON_PLAY__<span>Play (has 1 wrong note)</span></button>
 </div>
-<p class="ss-prompt">One note is played differently from the score. Tap the wrong note.</p>
+<p class="ss-prompt" id="error-prompt">One note is played differently from the score. Tap the wrong note.</p>
 </div>
 __VEXFLOW_INLINE__
 __RENDERER_INLINE__
@@ -586,7 +585,7 @@ ERROR_BACK_TEMPLATE = """
 <hr id="answer" class="ss-hr">
 <div class="ss-wrap">
 <div id="error-verdict" class="ss-verdict ss-verdict-none"></div>
-<div id="answer-info" class="ss-answer-info">{{ErrorLabel}}</div>
+<div id="answer-info" class="ss-answer-info"></div>
 <div class="ss-controls ss-if-audio">
   <button type="button" class="ss-btn" onclick="return playWritten();">__ICON_NOTE__<span>As written</span></button>
   <button type="button" class="ss-btn" onclick="return playMelody();">__ICON_PLAY__<span>As heard</span></button>

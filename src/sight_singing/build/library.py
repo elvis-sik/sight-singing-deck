@@ -22,7 +22,7 @@ from __future__ import annotations
 import hashlib
 
 from sight_singing.curriculum.stages import MAJOR_STAGES, Stage
-from sight_singing.generate.errors import make_error_case
+from sight_singing.generate.errors import make_error_variants
 from sight_singing.generate.melody_gen import generate_stage
 from sight_singing.theory.scales import (
     key as make_key,
@@ -149,12 +149,15 @@ def build_error_library(
     mode: str = "major",
     clef: str = "treble",
     per_stage: int = 8,
+    max_variants: int = 6,
 ) -> list[dict[str, object]]:
-    """Error-detection cases: take base melodies and alter one note each.
+    """Error-detection cases: one base melody, MANY single-note error variants.
 
     Each record carries the ``written`` melody record (for notation + the
-    "as written" clip), the realized ``played_notes`` (the wrong performance),
-    the ``error_index``, a reveal ``error_label``, and Anki ``tags``.
+    "as written" clip) and a list of ``variants``; each variant is a distinct
+    wrong performance (realized ``played_notes``, its ``error_index``, a reveal
+    ``label``, and a stable ``sub_id`` used to name its clip). The card picks a
+    variant per study view, so the wrong note is not memorisable to one spot.
     """
     k = make_key(key_name, mode)
     out: list[dict[str, object]] = []
@@ -163,26 +166,35 @@ def build_error_library(
         for degrees_idx in generate_stage(stage):
             if made >= per_stage:
                 break
-            case = make_error_case(tuple(degrees_idx))
-            if case is None:
+            cases = make_error_variants(tuple(degrees_idx), max_variants=max_variants)
+            if not cases:
                 continue
             written = realize_stage_melody(
                 stage, degrees_idx, key_name=key_name, mode=mode, clef=clef
             )
-            played_idx = list(case["played"])  # type: ignore[call-overload]
-            played_seq = realize_sequence(k, played_idx, clef)
-            played_notes = [str(item["note"]) for item in played_seq]
-            i = int(str(case["error_index"]))
-            w_idx = int(str(case["written_index"]))
-            p_idx = int(str(case["played_index"]))
             written_notes = written["notes"]
             assert isinstance(written_notes, list)
-            w_pitch = str(written_notes[i])
-            p_pitch = played_notes[i]
-            label = (
-                f"Note {i + 1}: written {solfege(k, w_idx)} ({w_pitch}), "
-                f"played {solfege(k, p_idx)} ({p_pitch})."
-            )
+            variants: list[dict[str, object]] = []
+            for vn, case in enumerate(cases):
+                played_idx = list(case["played"])  # type: ignore[call-overload]
+                played_seq = realize_sequence(k, played_idx, clef)
+                played_notes = [str(item["note"]) for item in played_seq]
+                i = int(str(case["error_index"]))
+                w_idx = int(str(case["written_index"]))
+                p_idx = int(str(case["played_index"]))
+                w_pitch = str(written_notes[i])
+                p_pitch = played_notes[i]
+                variants.append(
+                    {
+                        "sub_id": f"{written['id']}_e{vn}",
+                        "played_notes": played_notes,
+                        "error_index": i,
+                        "label": (
+                            f"Note {i + 1}: written {solfege(k, w_idx)} "
+                            f"({w_pitch}), played {solfege(k, p_idx)} ({p_pitch})."
+                        ),
+                    }
+                )
             made += 1
             out.append(
                 {
@@ -191,9 +203,7 @@ def build_error_library(
                     "phase": stage.phase,
                     "title": stage.title,
                     "written": written,
-                    "played_notes": played_notes,
-                    "error_index": i,
-                    "error_label": label,
+                    "variants": variants,
                     "tags": [
                         "sight_singing",
                         "track::errors",
@@ -263,20 +273,24 @@ def build_rhythm_library(clef: str = "treble") -> list[dict[str, object]]:
 def error_audio_entries(error_lib: list[dict[str, object]]) -> list[dict[str, object]]:
     """Flatten error records into melody dicts for ``build_library_audio``.
 
-    Emits both the written clip (from the written record) and the played
-    (altered) clip under the ``<id>_e`` id that ``card_data`` references.
+    Emits the written (correct) clip plus one clip per variant, under the
+    ``<id>_e{n}`` ids that ``card_data`` references. The card plays a randomly
+    chosen variant clip each view.
     """
     entries: list[dict[str, object]] = []
     for rec in error_lib:
         written = rec["written"]
         assert isinstance(written, dict)
         entries.append(written)
-        entries.append(
-            {
-                "id": str(written["id"]) + "_e",
-                "notes": rec["played_notes"],
-                "durations": written["durations"],
-                "tonic": written["tonic"],
-            }
-        )
+        variants = rec["variants"]
+        assert isinstance(variants, list)
+        for v in variants:
+            entries.append(
+                {
+                    "id": str(v["sub_id"]),
+                    "notes": v["played_notes"],
+                    "durations": written["durations"],
+                    "tonic": written["tonic"],
+                }
+            )
     return entries

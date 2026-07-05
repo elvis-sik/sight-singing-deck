@@ -1,15 +1,17 @@
 <!doctype html><html><head><meta charset="utf-8">
 <link rel="stylesheet" href="../assets/card_styles.css">
 <style>body{font-family:sans-serif;padding:16px} .row{margin:8px 0}</style></head><body>
-<h3>Error-detection card harness</h3>
-<p>Tap a note (front). Click <b>Reveal</b> to see the wrong note (back).</p>
+<h3>Error-detection card harness (pick-a-variant)</h3>
+<p>Reload to get a different wrong note (random variant). Tap a note to commit +
+reveal on the front. Click <b>Flip to back</b> to check the best-effort back.</p>
 <div class="ss-wrap">
-<div id="melody-data" style="display:none;">{"version":2,"clef":"treble","key":"C","mode":"major","timeSig":"4/4","notes":["B3","C4","D4","C4"],"durations":["q","q","q","q"],"bars":[{"events":[{"kind":"note","pitch":"B3","duration":"q"},{"kind":"note","pitch":"C4","duration":"q"},{"kind":"note","pitch":"D4","duration":"q"},{"kind":"note","pitch":"C4","duration":"q"}]}],"degrees":[7,1,2,1],"supports":{"tonic":"C4","firstNote":"B3","cadenceKey":"C"},"audio":{"melody":"_m_m4_55062228_8274db272b.mp3","cadence":"_cadence_C_6cabcc9169.mp3","first":"_n_B3_fccf73512f.mp3","tonic":"_n_C4_0a8c6a0bc1.mp3","drone":"_d_C4_9c8bc4f17b.mp3"}}</div>
-<div id="error-index" style="display:none;">1</div>
+<div id="melody-data" style="display:none;">{"version":2,"clef":"treble","key":"C","mode":"major","timeSig":"4/4","notes":["C4","D4","E4","D4","C4"],"durations":["q","q","q","q","q"],"bars":[{"events":[{"kind":"note","pitch":"C4","duration":"q"},{"kind":"note","pitch":"D4","duration":"q"},{"kind":"note","pitch":"E4","duration":"q"},{"kind":"note","pitch":"D4","duration":"q"},{"kind":"note","pitch":"C4","duration":"q"}]}],"degrees":[1,2,3,2,1],"supports":{"tonic":"C4","firstNote":"C4","cadenceKey":"C"},"audio":{"cadence":"_cadence_C_6cabcc9169.mp3","first":"_n_C4_0a8c6a0bc1.mp3","tonic":"_n_C4_0a8c6a0bc1.mp3","drone":"_d_C4_9c8bc4f17b.mp3"}}</div>
+<div id="error-variants" style="display:none;">[{"f":"_e0.mp3","i":2,"label":"Note 3: written mi (E4), played fa (F4)."},{"f":"_e1.mp3","i":1,"label":"Note 2: written re (D4), played mi (E4)."},{"f":"_e2.mp3","i":3,"label":"Note 4: written re (D4), played do (C4)."}]</div>
+<div class="ss-meta" id="melody-meta" data-ss-badge="Find the error"></div>
 <div class="ss-panel"><div id="notation" class="ss-notation"></div></div>
-<div id="error-verdict" class="ss-verdict ss-verdict-none"></div>
-<div id="answer-info" class="row">Note 2: written do (C4), played mi (E4).</div>
-<button onclick="var m=document.createElement('div');m.id='error-back';document.body.appendChild(m);window.SightSingingErrorDetect();">Reveal</button>
+<div id="error-verdict-front" class="ss-verdict ss-verdict-none" style="display:none;"></div>
+<p class="ss-prompt" id="error-prompt">One note is played differently from the score. Tap the wrong note.</p>
+<button onclick="var m=document.createElement('div');m.id='error-back';var v=document.createElement('div');v.id='error-verdict';v.className='ss-verdict ss-verdict-none';var a=document.createElement('div');a.id='answer-info';a.className='row';document.body.appendChild(m);document.body.appendChild(v);document.body.appendChild(a);window.SightSingingErrorDetect();">Flip to back</button>
 </div>
 <script src="../assets/_vexflow.js"></script>
 <script src="../assets/_renderer.js"></script>

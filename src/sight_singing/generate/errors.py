@@ -28,20 +28,35 @@ def _distinct_from_neighbours(mel: tuple[int, ...], i: int, value: int) -> bool:
     return True
 
 
-def make_error_case(base: tuple[int, ...]) -> dict[str, object] | None:
-    """Return an error case for a base melody (diatonic indices), or None.
+def make_error_variants(
+    base: tuple[int, ...], max_variants: int = 6
+) -> list[dict[str, object]]:
+    """All (position-diverse) single-note error variants for a base melody.
 
-    The result carries the written and played index sequences, the 0-based
-    error index, and the written/played diatonic indices at that spot.
+    The card picks one of these at *study time* (per view), so the wrong note is
+    not memorisable to a fixed spot. We cover distinct interior positions first
+    (one best shift each — maximum positional spread), then add alternate shifts
+    on already-used positions until ``max_variants`` is reached. Fully
+    deterministic (stable clip filenames across rebuilds).
     """
     n = len(base)
     if n < 3:
-        return None
-    # Prefer altering an interior note (keeps the opening tonal anchor intact);
-    # fall back to the last note. Deterministic order: middle-out.
+        return []
     order = sorted(range(1, n), key=lambda i: (abs(i - (n - 1) / 2), i))
+
+    def variant(i: int, value: int) -> dict[str, object]:
+        return {
+            "played": base[:i] + (value,) + base[i + 1 :],
+            "error_index": i,
+            "written_index": base[i],
+            "played_index": value,
+        }
+
+    first_pass: list[dict[str, object]] = []  # one per position
+    extras: list[dict[str, object]] = []      # further shifts per position
     for i in order:
         original = base[i]
+        used_here = 0
         for shift in _SHIFTS:
             value = original + shift
             if not (_MIN_INDEX <= value <= _MAX_INDEX):
@@ -50,12 +65,6 @@ def make_error_case(base: tuple[int, ...]) -> dict[str, object] | None:
                 continue
             if not _distinct_from_neighbours(base, i, value):
                 continue
-            played = base[:i] + (value,) + base[i + 1 :]
-            return {
-                "written": base,
-                "played": played,
-                "error_index": i,
-                "written_index": original,
-                "played_index": value,
-            }
-    return None
+            (first_pass if used_here == 0 else extras).append(variant(i, value))
+            used_here += 1
+    return (first_pass + extras)[:max_variants]

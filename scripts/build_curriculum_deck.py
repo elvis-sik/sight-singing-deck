@@ -194,14 +194,9 @@ def build(out_path: Path, base_deck_name: str, assets_dir: Path, limit: int | No
                 )
             written = rec["written"]
             assert isinstance(written, dict)
-            played = rec["played_notes"]
-            assert isinstance(played, list)
-            fields = error_to_card_fields(
-                written,
-                [str(n) for n in played],
-                int(rec["error_index"]),  # type: ignore[call-overload]
-                str(rec["error_label"]),
-            )
+            variants = rec["variants"]
+            assert isinstance(variants, list)
+            fields = error_to_card_fields(written, variants)
             tags = rec["tags"]
             assert isinstance(tags, list)
             note = genanki.Note(

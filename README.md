@@ -96,9 +96,16 @@ curriculum order:
 
 The **Errors** track is a separate note type (`make_error_model`): you see the
 written score and hear a performance with exactly one in-key wrong note, and tap
-the note that sounds wrong. `generate/errors.py` alters one note of a base
-melody; the back reveals the wrong note in red and grades your tap. The tap +
-reveal live in `assets/_errordetect.js` (both drive the renderer's per-note
+the note that sounds wrong. It is **generated on the fly per view** — each note
+ships *every* single-note wrong-performance variant (`generate/errors.py`
+`make_error_variants`, one content-hashed clip each), and the card picks one at
+random each review, so the wrong note is never at a fixed, memorisable spot.
+Because Anki does not reliably carry JS state from the front render to the back
+render across platforms, grading and the reveal happen **on the front, on tap**
+(the wrong note turns red, your tap is graded); the back is a best-effort
+enhancement that re-shows the verdict/label when the front's choice survived
+(Desktop/iOS) and degrades to a neutral note otherwise (AnkiDroid). The tap +
+reveal live in `assets/_errordetect.js` (driving the renderer's per-note
 `styles` option; a defensive dep-poll bootstrap keeps it robust on iOS/Android).
 
 **Audio clues** (buttons on the card, plus a per-side autoplay config block in
