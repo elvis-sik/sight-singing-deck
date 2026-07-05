@@ -34,13 +34,16 @@ from sight_singing.anki_model import (
     MODEL_NAME,
     make_error_model,
     make_model,
+    make_rhythm_model,
 )
 from sight_singing.audio_assets import build_library_audio, library_audio_basenames
 from sight_singing.build.library import (
     build_error_library,
     build_library,
+    build_rhythm_library,
     error_audio_entries,
 )
+from sight_singing.generate.rhythm import RHYTHM_STAGES
 from sight_singing.card_data import error_to_card_fields, melody_to_card_fields
 from sight_singing.curriculum.stages import (
     INTERVAL_STAGES,
@@ -88,6 +91,9 @@ _ERROR_STAGE_IDS = ["M2", "M4", "M5", "M7", "M8", "N2", "N4", "N5"]
 ERROR_DECK_ID_BASE = DECK_ID + 400
 ERROR_PER_STAGE = 8
 
+# Rhythm-first track (its own Sing-only note type), treble + bass.
+RHYTHM_DECK_ID_BASE = DECK_ID + 700
+
 
 def _deck_name(base: str, track: str, index: int, stage_id: str, title: str) -> str:
     # Zero-padded index keeps Anki's alphabetical deck sort in curriculum order.
@@ -131,10 +137,15 @@ def build(out_path: Path, base_deck_name: str, assets_dir: Path, limit: int | No
     if limit is not None:
         error_lib = error_lib[:limit]
 
-    audio_library = full_library + error_audio_entries(error_lib)
+    # Rhythm-first library (treble + bass), its own Sing-only note type.
+    rhythm_lib = build_rhythm_library("treble") + build_rhythm_library("bass")
+    if limit is not None:
+        rhythm_lib = rhythm_lib[:limit]
+
+    audio_library = full_library + error_audio_entries(error_lib) + rhythm_lib
     print(
         f"Rendering audio for {len(full_library)} melodies "
-        f"+ {len(error_lib)} error cases …",
+        f"+ {len(error_lib)} error cases + {len(rhythm_lib)} rhythm bars …",
         flush=True,
     )
     build_library_audio(assets_dir, audio_library)
@@ -203,6 +214,36 @@ def build(out_path: Path, base_deck_name: str, assets_dir: Path, limit: int | No
             err_decks[sid] for sid in _ERROR_STAGE_IDS if sid in err_decks
         )
 
+    # Rhythm track (Sing-only note type). One subdeck per (clef, stage).
+    if rhythm_lib:
+        rhythm_model = make_rhythm_model()
+        rhy_order = {s.id: i for i, s in enumerate(RHYTHM_STAGES)}
+        rhy_decks: dict[str, genanki.Deck] = {}
+        deck_seq: list[str] = []
+        for rec in rhythm_lib:
+            sid = str(rec["stage_id"])
+            clef = str(rec["clef"])
+            group = "Rhythm · Bass" if clef == "bass" else "Rhythm"
+            key = f"{group}/{sid}"
+            if key not in rhy_decks:
+                idx = rhy_order.get(sid, 99)
+                name = _deck_name(base_deck_name, group, idx, sid, str(rec["title"]))
+                bump = 100 if clef == "bass" else 0
+                rhy_decks[key] = genanki.Deck(
+                    deck_id=RHYTHM_DECK_ID_BASE + bump + idx, name=name
+                )
+                deck_seq.append(key)
+            fields = melody_to_card_fields(rec)
+            tags = rec["tags"]
+            assert isinstance(tags, list)
+            note = genanki.Note(
+                model=rhythm_model,
+                fields=[fields[f] for f in FIELD_NAMES],
+                tags=[str(t) for t in tags],
+            )
+            rhy_decks[key].add_note(note)
+        ordered_decks.extend(rhy_decks[k] for k in deck_seq)
+
     pkg = genanki.Package(ordered_decks)
 
     expected = library_audio_basenames(audio_library)
@@ -216,7 +257,7 @@ def build(out_path: Path, base_deck_name: str, assets_dir: Path, limit: int | No
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     write_package(pkg, out_path)
-    return len(full_library) + len(error_lib)
+    return len(full_library) + len(error_lib) + len(rhythm_lib)
 
 
 def main(argv: list[str]) -> int:

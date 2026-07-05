@@ -192,6 +192,8 @@
 
   function renderDegrees(container, data) {
     if (!container || !data || !data.events) return;
+    // Rhythm cards carry no scale degrees — skip the whole section.
+    if (!data.degrees || !data.degrees.length) return;
 
     var wrap = document.createElement("div");
     wrap.className = "ss-degrees";

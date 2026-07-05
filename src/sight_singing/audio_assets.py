@@ -48,6 +48,9 @@ DURATION_BEATS = {
     "q": 1.0,
     "h": 2.0,
     "w": 4.0,
+    "8d": 0.75,
+    "qd": 1.5,
+    "hd": 3.0,
 }
 
 NOTE_TO_MIDI = {

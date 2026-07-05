@@ -597,12 +597,25 @@ __BOOT_TAIL__
 """.strip()
 
 
+# Rhythm-first cards reuse the Sing card verbatim (one repeated pitch, all the
+# information is in the durations) — only the badge and prompt change. Sing-only
+# (a Transcribe/pitch-dictation card on a single repeated pitch is pointless), so
+# it gets its own note type.
+RHYTHM_MODEL_ID = 2_948_817_017
+RHYTHM_MODEL_NAME = "Sight Singing — Rhythm (v1)"
+RHYTHM_FRONT_TEMPLATE = FRONT_TEMPLATE.replace(
+    'data-ss-badge="Sing"', 'data-ss-badge="Rhythm"'
+).replace("Sing this melody.", "Read and clap this rhythm (one pitch — it's all timing).")
+RHYTHM_BACK_TEMPLATE = BACK_TEMPLATE
+
 FRONT_TEMPLATE = _fill(FRONT_TEMPLATE)
 BACK_TEMPLATE = _fill(BACK_TEMPLATE)
 TRANSCRIBE_FRONT_TEMPLATE = _fill(TRANSCRIBE_FRONT_TEMPLATE)
 TRANSCRIBE_BACK_TEMPLATE = _fill(TRANSCRIBE_BACK_TEMPLATE)
 ERROR_FRONT_TEMPLATE = _fill(ERROR_FRONT_TEMPLATE)
 ERROR_BACK_TEMPLATE = _fill(ERROR_BACK_TEMPLATE)
+RHYTHM_FRONT_TEMPLATE = _fill(RHYTHM_FRONT_TEMPLATE)
+RHYTHM_BACK_TEMPLATE = _fill(RHYTHM_BACK_TEMPLATE)
 
 
 def make_model() -> genanki.Model:
@@ -620,6 +633,22 @@ def make_model() -> genanki.Model:
                 "name": "Transcribe",
                 "qfmt": TRANSCRIBE_FRONT_TEMPLATE,
                 "afmt": TRANSCRIBE_BACK_TEMPLATE,
+            },
+        ],
+        css=model_css(),
+    )
+
+
+def make_rhythm_model() -> genanki.Model:
+    return genanki.Model(
+        model_id=RHYTHM_MODEL_ID,
+        name=RHYTHM_MODEL_NAME,
+        fields=[{"name": n} for n in FIELD_NAMES],
+        templates=[
+            {
+                "name": "Rhythm",
+                "qfmt": RHYTHM_FRONT_TEMPLATE,
+                "afmt": RHYTHM_BACK_TEMPLATE,
             },
         ],
         css=model_css(),

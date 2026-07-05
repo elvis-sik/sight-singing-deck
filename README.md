@@ -73,10 +73,23 @@ from constraint specs (no hand-authored melodies). The pipeline lives under
   score → contour-signature diverse sampling.
 - `build/library.py` — realize stages into card-ready melody records.
 
-The deck ships four tracks as subdecks — **Major** (C), **Minor** (A, the
-relative minor), **Intervals**, and **Errors** — each split into per-stage
-subdecks in curriculum order. Every melody yields a **Sing** card and a
-**Transcribe** (dictation) card.
+The deck ships several tracks as subdecks, each split into per-stage subdecks in
+curriculum order:
+
+- **Major** (C) and **Minor** (A, the relative minor) — the melodic ladder.
+  Every melody yields a **Sing** card and a **Transcribe** (dictation) card.
+- **Intervals** — isolated two-note interval drills (IV2–IV8).
+- **Errors** — error-detection (see below).
+- **Keys · G major / F major** and **Clef · Bass (C major / A minor)** — bounded
+  movable-do transfer tracks (a curated stage spread in other keys and bass clef,
+  capped per stage). The renderer draws the right **key signature** and only
+  marks accidentals that deviate from it; cadences are transposed per key/mode
+  (a real i-iv-**V**-i in minor, with the raised leading tone).
+- **Rhythm / Rhythm · Bass** — rhythm-first cards (`generate/rhythm.py`,
+  `make_rhythm_model`): one bar on a single repeated pitch so the interest is
+  pure timing. Stages R1–R6 cover quarters/halves/wholes, rests, beamed eighth
+  pairs, mixed fillings, offbeat eighth rests, and dotted-quarter patterns.
+  (Ties/triplets, R7–R9, need StaveTie/Tuplet support — a later step.)
 
 The **Errors** track is a separate note type (`make_error_model`): you see the
 written score and hear a performance with exactly one in-key wrong note, and tap

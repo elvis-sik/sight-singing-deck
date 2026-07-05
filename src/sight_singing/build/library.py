@@ -206,6 +206,48 @@ def build_error_library(
     return out
 
 
+_RHYTHM_PITCH = {"treble": "B4", "bass": "D3"}
+
+
+def build_rhythm_library(clef: str = "treble") -> list[dict[str, object]]:
+    """Rhythm-first cards: one bar per card on a single repeated pitch.
+
+    Reuses the melody-record shape (so ``melody_to_card_fields`` and the audio
+    renderer work unchanged); the pitch is constant and the interest is timing.
+    """
+    from sight_singing.generate.rhythm import RHYTHM_STAGES, generate_rhythm_stage
+
+    pitch = _RHYTHM_PITCH.get(clef, "B4")
+    library: list[dict[str, object]] = []
+    for stage in RHYTHM_STAGES:
+        for events in generate_rhythm_stage(stage):
+            durations = [d for d, _rest in events]
+            notes = [("rest" if is_rest else pitch) for _d, is_rest in events]
+            blob = f"{stage.id}:{clef}:{','.join(durations)}"
+            digest = hashlib.sha1(blob.encode("utf-8")).hexdigest()[:8]
+            library.append(
+                {
+                    "id": f"{stage.id.lower()}_{clef[0]}_{digest}",
+                    "stage_id": stage.id,
+                    "title": stage.title,
+                    "notes": notes,
+                    "durations": durations,
+                    "degrees": [],  # rhythm cards have no scale-degree chips
+                    "clef": clef,
+                    "key": "C",
+                    "mode": "major",
+                    "tonic": pitch,
+                    "tags": [
+                        "sight_singing",
+                        "track::rhythm",
+                        f"stage::{stage.id}",
+                        f"clef::{clef}",
+                    ],
+                }
+            )
+    return library
+
+
 def error_audio_entries(error_lib: list[dict[str, object]]) -> list[dict[str, object]]:
     """Flatten error records into melody dicts for ``build_library_audio``.
 
