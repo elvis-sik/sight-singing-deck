@@ -40,18 +40,26 @@ def melody_to_card_fields(melody: dict[str, Any]) -> dict[str, str]:
     stage_id = str(melody.get("stage_id", "stage1"))
     key_sig, key_accidentals = key_signature(make_key(key_name, mode))
 
-    events = []
-    for note, duration in zip(notes, durations):
-        if note in (None, "rest"):
-            events.append({"kind": "rest", "duration": str(duration)})
-        else:
-            events.append(
-                {
-                    "kind": "note",
-                    "pitch": str(note),
-                    "duration": str(duration),
-                }
-            )
+    # Notation events. Ties/triplets need a notation view that differs from the
+    # audio view (a tie is one sustained note in audio but two tied notes on the
+    # staff; a triplet eighth is 1/3 beat), so a melody may carry an explicit
+    # ``render_events`` for the staff while ``notes``/``durations`` drive audio.
+    render_events = melody.get("render_events")
+    if render_events:
+        events = [dict(e) for e in render_events]
+    else:
+        events = []
+        for note, duration in zip(notes, durations):
+            if note in (None, "rest"):
+                events.append({"kind": "rest", "duration": str(duration)})
+            else:
+                events.append(
+                    {
+                        "kind": "note",
+                        "pitch": str(note),
+                        "duration": str(duration),
+                    }
+                )
 
     first_sounded_note = next(
         (str(note) for note in notes if note not in (None, "rest")),

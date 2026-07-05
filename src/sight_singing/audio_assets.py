@@ -51,6 +51,7 @@ DURATION_BEATS = {
     "8d": 0.75,
     "qd": 1.5,
     "hd": 3.0,
+    "8t": 1.0 / 3.0,  # triplet eighth (three per beat)
 }
 
 NOTE_TO_MIDI = {

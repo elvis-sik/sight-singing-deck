@@ -220,10 +220,21 @@ def build_rhythm_library(clef: str = "treble") -> list[dict[str, object]]:
     pitch = _RHYTHM_PITCH.get(clef, "B4")
     library: list[dict[str, object]] = []
     for stage in RHYTHM_STAGES:
-        for events in generate_rhythm_stage(stage):
-            durations = [d for d, _rest in events]
-            notes = [("rest" if is_rest else pitch) for _d, is_rest in events]
-            blob = f"{stage.id}:{clef}:{','.join(durations)}"
+        for bar in generate_rhythm_stage(stage):
+            audio = bar["audio"]
+            durations = [d for d, _rest in audio]
+            notes = [("rest" if is_rest else pitch) for _d, is_rest in audio]
+            render_events = []
+            for e in bar["render"]:
+                item = dict(e)
+                if item.get("kind") != "rest":
+                    item["pitch"] = pitch
+                render_events.append(item)
+            blob = f"{stage.id}:{clef}:" + "|".join(
+                f"{e.get('duration')}{'t' if e.get('tie') else ''}"
+                f"{'T' if e.get('tuplet') else ''}"
+                for e in render_events
+            )
             digest = hashlib.sha1(blob.encode("utf-8")).hexdigest()[:8]
             library.append(
                 {
@@ -232,6 +243,7 @@ def build_rhythm_library(clef: str = "treble") -> list[dict[str, object]]:
                     "title": stage.title,
                     "notes": notes,
                     "durations": durations,
+                    "render_events": render_events,
                     "degrees": [],  # rhythm cards have no scale-degree chips
                     "clef": clef,
                     "key": "C",

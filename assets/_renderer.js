@@ -46,6 +46,7 @@
       return {
         kind: "rest",
         duration: duration,
+        tuplet: !!event.tuplet,
       };
     }
     if (!event.pitch) return null;
@@ -53,6 +54,8 @@
       kind: "note",
       pitch: String(event.pitch),
       duration: duration,
+      tie: !!event.tie,       // tied to the following note (same pitch)
+      tuplet: !!event.tuplet, // member of a 3-in-2 triplet group
     };
   }
 
@@ -303,10 +306,14 @@
     for (var i = 0; i < events.length; i++) {
       var event = events[i];
       var units = durationUnits(event.duration);
-      var isEighthNote = event.kind === "note" && event.duration === "8";
+      // Triplet members are beamed separately (with their tuplet); skip here.
+      var isEighthNote =
+        event.kind === "note" && event.duration === "8" && !event.tuplet;
       var startsBeat = unit % 2 === 0;
 
-      if (isEighthNote) {
+      if (event.tuplet) {
+        flush();
+      } else if (isEighthNote) {
         if (startsBeat) flush();
         group.push(notes[i]);
       } else {
@@ -317,6 +324,54 @@
     }
     flush();
     return beams;
+  }
+
+  /* Group consecutive triplet members into 3-note tuplets (+ their beams). */
+  function tupletGroups(VF, events, notes) {
+    var tuplets = [];
+    var beams = [];
+    var group = [];
+
+    function flush() {
+      if (group.length) {
+        try {
+          tuplets.push(new VF.Tuplet(group, { num_notes: 3, notes_occupied: 2 }));
+          if (group.length >= 2) beams.push(new VF.Beam(group));
+        } catch (e) {}
+      }
+      group = [];
+    }
+
+    for (var i = 0; i < events.length; i++) {
+      if (events[i].tuplet) {
+        group.push(notes[i]);
+        if (group.length === 3) flush();
+      } else {
+        flush();
+      }
+    }
+    flush();
+    return { tuplets: tuplets, beams: beams };
+  }
+
+  /* Ties: connect each tied note to the next (same pitch). */
+  function tieGroups(VF, events, notes) {
+    var ties = [];
+    for (var i = 0; i < events.length - 1; i++) {
+      if (events[i].tie && events[i].kind === "note") {
+        try {
+          ties.push(
+            new VF.StaveTie({
+              first_note: notes[i],
+              last_note: notes[i + 1],
+              first_indices: [0],
+              last_indices: [0],
+            })
+          );
+        } catch (e) {}
+      }
+    }
+    return ties;
   }
 
   /*
@@ -378,11 +433,22 @@
     }
 
     var beams = beamGroups(VF, data.events, notes);
+    var tup = tupletGroups(VF, data.events, notes);
+    var ties = tieGroups(VF, data.events, notes);
 
     try {
       VF.Formatter.FormatAndDraw(ctx, stave, notes);
       for (var b = 0; b < beams.length; b++) {
         beams[b].setContext(ctx).draw();
+      }
+      for (var tb = 0; tb < tup.beams.length; tb++) {
+        tup.beams[tb].setContext(ctx).draw();
+      }
+      for (var t = 0; t < tup.tuplets.length; t++) {
+        tup.tuplets[t].setContext(ctx).draw();
+      }
+      for (var y = 0; y < ties.length; y++) {
+        ties[y].setContext(ctx).draw();
       }
     } catch (err) {
       notationEl.innerHTML = "";

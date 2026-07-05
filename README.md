@@ -87,9 +87,12 @@ curriculum order:
   (a real i-iv-**V**-i in minor, with the raised leading tone).
 - **Rhythm / Rhythm · Bass** — rhythm-first cards (`generate/rhythm.py`,
   `make_rhythm_model`): one bar on a single repeated pitch so the interest is
-  pure timing. Stages R1–R6 cover quarters/halves/wholes, rests, beamed eighth
-  pairs, mixed fillings, offbeat eighth rests, and dotted-quarter patterns.
-  (Ties/triplets, R7–R9, need StaveTie/Tuplet support — a later step.)
+  pure timing. Stages **R1–R9**: quarters/halves/wholes, rests, beamed eighth
+  pairs, mixed fillings, offbeat eighth rests, dotted quarters, **ties/
+  syncopation** (offbeat quarters written as tied eighths across the beat),
+  **beat-level triplets**, and a full mixed-review stage. Each bar carries a
+  separate notation view (`render_events`, with tie/tuplet flags) and audio view
+  (ties merged to one sustained note, triplet eighths as `8t` = ⅓ beat).
 
 The **Errors** track is a separate note type (`make_error_model`): you see the
 written score and hear a performance with exactly one in-key wrong note, and tap
