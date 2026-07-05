@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 """Build the full function-first sight-singing curriculum .apkg.
 
-Generates every curriculum stage, realizes each melody (C major / treble for
-v1), renders its audio, and emits one Anki note per melody. Each note yields a
-Sing card and a Transcribe (dictation) card; notes are filed into a per-stage
-subdeck so the curriculum order is visible in Anki's deck list.
+Generates every curriculum stage (major and minor tracks), realizes each melody,
+renders its audio, and emits one Anki note per melody. Each note yields a Sing
+card and a Transcribe (dictation) card; notes are filed into a per-stage subdeck
+under a per-track subdeck so the curriculum order is visible in Anki's deck list.
+
+v1 realizes the major track in C major and the minor track in A minor (the
+relative minor — both notate on the natural, white-key staff), all treble clef.
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parents[1]
@@ -27,53 +31,76 @@ from sight_singing.anki_model import DECK_ID, FIELD_NAMES, MODEL_NAME, make_mode
 from sight_singing.audio_assets import build_library_audio, library_audio_basenames
 from sight_singing.build.library import build_library
 from sight_singing.card_data import melody_to_card_fields
-from sight_singing.curriculum.stages import MAJOR_STAGES
+from sight_singing.curriculum.stages import MAJOR_STAGES, MINOR_STAGES, Stage
 
 
-def _stage_order() -> dict[str, int]:
-    return {stage.id: i for i, stage in enumerate(MAJOR_STAGES)}
+@dataclass(frozen=True)
+class Track:
+    key: str  # subdeck label + tag, e.g. "Major"
+    stages: list[Stage]
+    key_name: str  # tonic letter, e.g. "C" / "A"
+    mode: str  # default realization mode
+    deck_id_base: int  # per-stage deck ids start here
 
 
-def _deck_name(base: str, index: int, stage_id: str, title: str) -> str:
+TRACKS = [
+    Track("Major", MAJOR_STAGES, "C", "major", DECK_ID + 100),
+    Track("Minor", MINOR_STAGES, "A", "natural_minor", DECK_ID + 200),
+]
+
+
+def _deck_name(base: str, track: str, index: int, stage_id: str, title: str) -> str:
     # Zero-padded index keeps Anki's alphabetical deck sort in curriculum order.
-    return f"{base}::{index:02d} {stage_id} · {title}"
+    return f"{base}::{track}::{index:02d} {stage_id} · {title}"
+
+
+def _track_library(track: Track) -> list[dict[str, object]]:
+    return build_library(track.stages, key_name=track.key_name, mode=track.mode)
 
 
 def build(out_path: Path, base_deck_name: str, assets_dir: Path, limit: int | None) -> int:
-    library = build_library()
-    if limit is not None:
-        library = library[:limit]
+    # Build every track's library first so audio renders once for the whole set.
+    track_libraries: list[tuple[Track, list[dict[str, object]]]] = []
+    for track in TRACKS:
+        lib = _track_library(track)
+        if limit is not None:
+            lib = lib[:limit]
+        track_libraries.append((track, lib))
 
-    print(f"Rendering audio for {len(library)} melodies …", flush=True)
-    build_library_audio(assets_dir, library)
+    full_library = [rec for _, lib in track_libraries for rec in lib]
+    print(f"Rendering audio for {len(full_library)} melodies …", flush=True)
+    build_library_audio(assets_dir, full_library)
 
     model = make_model()
-    order = _stage_order()
-    decks: dict[str, genanki.Deck] = {}
+    ordered_decks: list[genanki.Deck] = []
 
-    for record in library:
-        stage_id = str(record["stage_id"])
-        if stage_id not in decks:
-            index = order.get(stage_id, 99)
-            name = _deck_name(base_deck_name, index, stage_id, str(record["title"]))
-            # Stable, unique per-stage deck id.
-            deck_id = DECK_ID + 1 + index
-            decks[stage_id] = genanki.Deck(deck_id=deck_id, name=name)
+    for track, lib in track_libraries:
+        order = {s.id: i for i, s in enumerate(track.stages)}
+        decks: dict[str, genanki.Deck] = {}
+        for record in lib:
+            stage_id = str(record["stage_id"])
+            if stage_id not in decks:
+                index = order.get(stage_id, 99)
+                name = _deck_name(
+                    base_deck_name, track.key, index, stage_id, str(record["title"])
+                )
+                decks[stage_id] = genanki.Deck(
+                    deck_id=track.deck_id_base + index, name=name
+                )
+            fields = melody_to_card_fields(record)
+            tags = record["tags"]
+            assert isinstance(tags, list)
+            note = genanki.Note(
+                model=model,
+                fields=[fields[f] for f in FIELD_NAMES],
+                tags=[str(t) for t in tags] + [f"track::{track.key.lower()}"],
+            )
+            decks[stage_id].add_note(note)
+        ordered_decks.extend(decks[s.id] for s in track.stages if s.id in decks)
 
-        fields = melody_to_card_fields(record)
-        tags = record["tags"]
-        assert isinstance(tags, list)
-        note = genanki.Note(
-            model=model,
-            fields=[fields[f] for f in FIELD_NAMES],
-            tags=[str(t) for t in tags],
-        )
-        decks[stage_id].add_note(note)
-
-    ordered_decks = [decks[s.id] for s in MAJOR_STAGES if s.id in decks]
     pkg = genanki.Package(ordered_decks)
 
-    expected = library_audio_basenames(library)
+    expected = library_audio_basenames(full_library)
     media_files: list[str] = []
     for bn in expected:
         clip = assets_dir / bn
@@ -84,7 +111,7 @@ def build(out_path: Path, base_deck_name: str, assets_dir: Path, limit: int | No
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     write_package(pkg, out_path)
-    return len(library)
+    return len(full_library)
 
 
 def main(argv: list[str]) -> int:
@@ -94,7 +121,7 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--assets", type=Path, default=_ROOT / "assets")
     ap.add_argument(
         "--limit", type=int, default=None,
-        help="Only build the first N melodies (fast smoke build).",
+        help="Only build the first N melodies per track (fast smoke build).",
     )
     args = ap.parse_args(argv)
     count = build(args.out, args.deck_name, args.assets, args.limit)

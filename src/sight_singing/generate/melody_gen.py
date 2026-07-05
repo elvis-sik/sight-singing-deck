@@ -65,18 +65,22 @@ def passes_hard_rules(mel: tuple[int, ...], stage: Stage) -> bool:
                 if not (0 < abs(nxt) <= 2 and (nxt > 0) != (s > 0)):
                     return False
 
-    # Tendency tones: 7 (index 6, ti / leading tone) must resolve up to the
-    # octave (index 7); 4 (index 3, fa) must resolve down to 3 (index 2). Applied
-    # relative to the base octave (indices repeat every 7).
+    # Tendency tones resolve by step. Which scale positions pull, and in which
+    # direction, is mode-dependent (see Stage.tendency_up_from/down_from). Major
+    # default: ti (index 6) -> up to do; fa (index 3) -> down to mi. Indices
+    # repeat every 7, so compare on the position mod 7.
+    up = stage.tendency_up_from
+    down = stage.tendency_down_from
     if stage.require_tendency_resolution:
         for a, b in zip(mel, mel[1:]):
-            deg_a = a % 7
-            if deg_a == 6 and (b - a) != 1:  # ti must go to do (up a step)
+            pos = a % 7
+            if pos in up and (b - a) != 1:
                 return False
-            if deg_a == 3 and (b - a) != -1:  # fa must go to mi (down a step)
+            if pos in down and (b - a) != -1:
                 return False
     if stage.require_tendency_present:
-        if not any((n % 7) in (3, 6) for n in mel):
+        tendency_positions = set(up) | set(down)
+        if not any((n % 7) in tendency_positions for n in mel):
             return False
     if stage.require_present_any:
         if not any(n in stage.require_present_any for n in mel):

@@ -11,7 +11,7 @@ steps, then tendency tones, then wider leaps — not raw interval size.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 
 @dataclass(frozen=True)
@@ -34,6 +34,16 @@ class Stage:
     require_recovery: bool = True  # after a >=3rd, step back the other way
     require_tendency_resolution: bool = False  # ti->do, fa->mi resolve by step
     require_tendency_present: bool = False
+    # Which diatonic-index positions (mod 7) are tendency tones and how they must
+    # resolve. Defaults are MAJOR: leading tone ti (index 6) pulls up to do; fa
+    # (index 3) pulls down to mi. Minor stages override these (the half-steps sit
+    # at different scale positions, and harmonic minor adds a raised leading tone).
+    tendency_up_from: tuple[int, ...] = (6,)  # must step +1
+    tendency_down_from: tuple[int, ...] = (3,)  # must step -1
+    # Realization mode override (None -> use the caller's mode). Lets a minor
+    # ladder run mostly in natural minor but raise a harmonic-minor leading-tone
+    # stage without changing the others.
+    mode: str | None = None
     # At least one note whose diatonic index is in this set must appear. Used to
     # make each step stage foreground the *new* degree it introduces (so nested
     # pools like M0_4 c M1 c M2 don't all lead with the same low melody).
@@ -142,4 +152,89 @@ MAJOR_STAGES: list[Stage] = [
     ),
 ]
 
-STAGES_BY_ID = {s.id: s for s in MAJOR_STAGES}
+# --- Minor ladder ------------------------------------------------------------
+# La-based minor: the tonic triad is la-do-mi = diatonic indices 0, 2, 4 — the
+# SAME indices as the major tonic triad (do-mi-so). Because the whole ladder is
+# anchored to those triad indices, the structural stages (triad, steps, leaps)
+# are function-correct when simply realized in natural minor; only the tendency
+# tones differ (minor's half-steps sit at ti->do and fa->mi, i.e. indices 1 and
+# 5), and harmonic minor adds a raised leading tone (si, index 6 -> la).
+
+# Titles reflect minor solfège (index 0=la, 2=do, 4=mi, ...); everything else is
+# inherited from the matching major stage's constraint spec.
+_MINOR_TITLES = {
+    "M0_1": "La–Do–Mi Core (do–mi)",
+    "M0_2": "Do–Mi–Fa",
+    "M0_3": "The Minor Triad (la–do–mi)",
+    "M0_4": "Lower Tetrachord (la–ti–do)",
+    "M1": "Stepwise Around Anchors",
+    "M2": "The Whole Scale (minor)",
+    "M4": "Free Stepwise",
+    "M5": "Thirds Integrated",
+    "M6": "Perfect Fourths",
+    "M7": "Fourths Integrated",
+    "M8": "Fifths & Sixths",
+    "M9": "Free Diatonic Melodies (minor)",
+}
+
+
+def _to_minor(stage: Stage) -> Stage:
+    """Recast a major structural stage as its natural-minor counterpart."""
+    return replace(
+        stage,
+        id="N" + stage.id[1:],
+        title=_MINOR_TITLES.get(stage.id, stage.title),
+        phase="minor-" + stage.phase,
+        mode="natural_minor",
+        # Structural stages carry no tendency requirements; make that explicit so
+        # no major-specific tendency config leaks in.
+        require_tendency_present=False,
+        require_tendency_resolution=False,
+        tendency_up_from=(1,),
+        tendency_down_from=(5,),
+    )
+
+
+_MINOR_STRUCTURAL = [_to_minor(s) for s in MAJOR_STAGES if s.id != "M3"]
+
+# Natural-minor tendency stage (replaces major M3): fa->mi and ti->do resolve by
+# half-step. In la-based minor those half-steps sit at indices 5 (fa) and 1 (ti).
+_N3_NATURAL = Stage(
+    "N3", "Fa Wants Mi / Ti Wants Do (minor)", "minor-steps",
+    pool=(DL7, D1, D2, D3, D4, D5, D6, D7), start_pool=(D1, D2, D3, D5),
+    end_pool=(D1, D3, D5), max_step=1, count=24, max_direction_changes=3,
+    mode="natural_minor",
+    require_tendency_present=True, require_tendency_resolution=True,
+    tendency_up_from=(1,), tendency_down_from=(5,),
+    default_support=("first",),
+    notes="Natural-minor half-steps: ti->do (index 1) and fa->mi (index 5).",
+)
+
+# Harmonic-minor leading-tone stage: the raised 7 (si, index 6 in harmonic minor)
+# is a real leading tone pulling up a half-step to la. Thirds allowed so si can
+# be reached without the awkward augmented 2nd (fa is left out of the pool).
+_N3_HARMONIC = Stage(
+    "N7h", "The Raised 7th — Harmonic Minor (si->la)", "minor-tendency",
+    pool=(D1, D3, D4, D5, D7, D8), start_pool=(D1, D3, D5),
+    end_pool=(D1, D8), max_step=2, count=24, length=5, max_leaps=2,
+    mode="harmonic_minor",
+    require_tendency_present=True, require_tendency_resolution=True,
+    require_present_any=(D7,),  # si (raised 7) must actually appear
+    tendency_up_from=(6,), tendency_down_from=(),
+    require_recovery=False,
+    default_support=("first",),
+    notes="Harmonic minor's leading tone si (index 6) resolves up to la; "
+          "cadential figures like mi-si-la and do-re-si-la.",
+)
+
+# Order: foundations & steps, the natural tendency stage in the M3 slot, then the
+# rest, with the harmonic-minor leading tone as a capstone.
+MINOR_STAGES: list[Stage] = []
+for _s in _MINOR_STRUCTURAL:
+    MINOR_STAGES.append(_s)
+    if _s.id == "N2":  # insert the natural-minor tendency stage after N2
+        MINOR_STAGES.append(_N3_NATURAL)
+MINOR_STAGES.append(_N3_HARMONIC)
+
+
+STAGES_BY_ID = {s.id: s for s in (*MAJOR_STAGES, *MINOR_STAGES)}

@@ -53,7 +53,12 @@ def realize_stage_melody(
     mode: str = "major",
     clef: str = "treble",
 ) -> dict[str, object]:
-    """Realize one degree sequence for a stage into a card-ready record."""
+    """Realize one degree sequence for a stage into a card-ready record.
+
+    The stage may override the realization ``mode`` (e.g. a harmonic-minor
+    leading-tone stage inside an otherwise natural-minor ladder).
+    """
+    mode = stage.mode or mode
     k = make_key(key_name, mode)
     realized = realize_sequence(k, list(degrees_idx), clef)
     tonic_octave = tonic_octave_for(k, clef)
