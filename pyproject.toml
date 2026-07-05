@@ -25,6 +25,9 @@ exclude-newer = "7 days"
 [tool.anki-addon-workbench]
 project_name = "Sight Singing Deck"
 seed_apkgs = [
+  # notetype-smoke first: 8 cards spanning all THREE note types (Sing/Transcribe,
+  # Error, Rhythm), so the render window actually exercises each template.
+  "out/notetype-smoke.apkg",
   "out/sight-singing-mvp.apkg",
   "out/transcription-debug-variants.apkg",
   "out/transcription-integration-variants.apkg",
@@ -32,7 +35,7 @@ seed_apkgs = [
 anki_version = "25.09"
 docker_image = "sight-singing-deck-anki-workbench"
 docker_workbench_spec = "anki-addon-workbench[gui]==0.4.0"
-deck_smoke_render_limit = 3
+deck_smoke_render_limit = 12
 
 [tool.ruff]
 line-length = 100
