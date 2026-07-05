@@ -31,7 +31,15 @@ class Stage:
     max_direction_changes: int = 3
     allow_three_repeats: bool = False
     require_leap: bool = False  # stage introduces a leap -> require one
+    require_leap_min: int = 0  # require >=1 adjacent leap of at least this
+    #   diatonic size (1=2nd .. 4=5th). Forces a *headline* stage (M6/M8) to
+    #   actually contain its named interval, not just any >=3rd.
     max_leaps: int | None = None  # cap on notes reached by a >2nd
+    # Reject any adjacent melodic tritone (6 semitones — a fa<->ti leap). Off in
+    # tonal music for beginners: it is the single hardest interval to sing and is
+    # avoided as a bare leap. Mode-aware (see melody_gen), so it also strips the
+    # tritone out of the "fourths"/"fifths" interval drills.
+    forbid_tritone_leap: bool = True
     require_recovery: bool = True  # after a >=3rd, step back the other way
     require_tendency_resolution: bool = False  # ti->do, fa->mi resolve by step
     require_tendency_present: bool = False
@@ -69,9 +77,10 @@ MAJOR_STAGES: list[Stage] = [
     ),
     Stage(
         "M0_2", "So–Mi–La", "foundation",
-        pool=(D3, D5, D6), start_pool=(D3, D5), end_pool=(D3, D5),
-        max_step=2, count=14,
-        notes="Add la above so; the children's-chant set.",
+        pool=(D3, D5, D6), start_pool=(D3, D5), end_pool=(D3, D5, D6),
+        max_step=2, count=12, require_present_any=(D6,),
+        notes="Add la above so; the children's-chant set. La must appear "
+              "(else it is just So–Mi again).",
     ),
     Stage(
         "M0_3", "The Triad Anchors", "foundation",
@@ -90,8 +99,9 @@ MAJOR_STAGES: list[Stage] = [
     Stage(
         "M1", "Stepwise Around Anchors", "steps",
         pool=(D1, D2, D3, D4, D5), start_pool=(D1, D3, D5), end_pool=(D1, D3, D5),
-        max_step=1, count=20, max_direction_changes=2, require_present_any=(D4,),
-        notes="Fill the low pentachord by step; fa/re connect the triad tones.",
+        max_step=1, count=20, max_direction_changes=2, require_present_any=(D2, D4),
+        notes="Fill the low pentachord by step; re/fa connect the triad tones "
+              "(require one of them, or it collapses to a triad-tone neighbourhood).",
     ),
     Stage(
         "M2", "The Whole Scale", "steps",
@@ -126,9 +136,11 @@ MAJOR_STAGES: list[Stage] = [
     Stage(
         "M6", "Perfect Fourths", "leaps",
         pool=(DL7, D1, D2, D3, D4, D5, D6, D7, D8), start_pool=(D1, D3, D5),
-        end_pool=(D1, D5, D8), max_step=3, count=44, require_leap=True, max_leaps=1,
+        end_pool=(D1, D5, D8), max_step=3, count=24, length=5, require_leap=True,
+        require_leap_min=3, max_leaps=1,
         default_support=("first_optional",),
-        notes="One controlled fourth (sol->do, do->fa) with stepwise recovery.",
+        notes="One controlled fourth (sol->do, do->fa) inside a short phrase, "
+              "with stepwise recovery.",
     ),
     Stage(
         "M7", "Fourths Integrated", "leaps",
@@ -140,9 +152,11 @@ MAJOR_STAGES: list[Stage] = [
     Stage(
         "M8", "Fifths & Sixths", "leaps",
         pool=(DL7, D1, D2, D3, D4, D5, D6, D7, D8), start_pool=(D1, D3, D5),
-        end_pool=(D1, D5, D8), max_step=5, count=48, require_leap=True, max_leaps=1,
+        end_pool=(D1, D5, D8), max_step=5, count=24, length=5, require_leap=True,
+        require_leap_min=4, max_leaps=1,
         default_support=(),
-        notes="do->sol, do->la: the widest v1 leaps, with strong recovery.",
+        notes="do->sol, do->la: the widest v1 leaps, inside a short phrase with "
+              "strong stepwise recovery.",
     ),
     Stage(
         "M9", "Free Diatonic Melodies", "leaps",

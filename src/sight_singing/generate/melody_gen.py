@@ -11,6 +11,7 @@ import itertools
 from collections.abc import Iterable
 
 from sight_singing.curriculum.stages import Stage
+from sight_singing.theory.scales import diatonic_semitone
 
 
 def _steps(mel: tuple[int, ...]) -> list[int]:
@@ -54,6 +55,21 @@ def passes_hard_rules(mel: tuple[int, ...], stage: Stage) -> bool:
         return False
     if stage.max_leaps is not None and len(leaps) > stage.max_leaps:
         return False
+    # Headline leap: a named-interval stage (e.g. "Perfect Fourths") must contain
+    # at least one adjacent leap of its size, not merely any >=3rd.
+    if stage.require_leap_min and not any(
+        a >= stage.require_leap_min for a in abs_steps
+    ):
+        return False
+
+    # No bare melodic tritone (6 semitones). Diatonic-step size can't see this —
+    # a diatonic 4th is a P4 almost everywhere but an augmented 4th between fa and
+    # ti — so we check the realized semitone interval for the stage's mode.
+    if stage.forbid_tritone_leap:
+        mode = stage.mode or "major"
+        for a, b in zip(mel, mel[1:]):
+            if abs(diatonic_semitone(b, mode) - diatonic_semitone(a, mode)) == 6:
+                return False
 
     # Recovery after a big leap (>= a third): the next motion should step back
     # in the opposite direction (contrary stepwise recovery).

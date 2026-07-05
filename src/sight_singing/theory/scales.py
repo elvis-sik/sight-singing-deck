@@ -156,6 +156,19 @@ def degree_number(d: int) -> int:
     return (d % 7) + 1
 
 
+def diatonic_semitone(d: int, mode: str = "major") -> int:
+    """Semitone height of diatonic index `d` above the tonic, for a given mode.
+
+    Key-independent (transposition preserves intervals): a melodic interval's
+    semitone size is ``diatonic_semitone(b) - diatonic_semitone(a)``. Lets the
+    key-agnostic generator reason about *interval quality* (e.g. reject a
+    6-semitone melodic tritone) without committing to a key.
+    """
+    steps = MODE_STEPS[mode]
+    octave, pos = divmod(d, 7)
+    return steps[pos] + 12 * octave
+
+
 def solfege(k: Key, d: int) -> str:
     return k.solfege_syllables()[d % 7]
 
