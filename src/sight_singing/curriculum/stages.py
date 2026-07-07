@@ -287,77 +287,147 @@ INTERVAL_STAGES: list[Stage] = [
 
 
 # --- Dictation curriculum (melodic spine) ----------------------------------
-# See DICTATION_CURRICULUM.md. Dictation is ordered by phrase length + memory +
-# audibility, not vocal difficulty, and draws its own pool. These are the
-# PITCH-ONLY, even-rhythm stages (no rests → clean exact-match grading); the
-# pitch+rhythm stages DD5 and DD7 wait on new generation logic (combine a pitched
-# contour with a rhythmic pattern) and are intentionally absent here. Length ramps
-# 3→4→5→6 and resets to 4 when the leap axis is introduced (DD8), so only one
-# difficulty axis moves at a time.
+# See DICTATION_CURRICULUM.md (rev 3). Dictation is ordered by phrase length +
+# working memory + interval audibility, NOT vocal difficulty, and draws its own
+# pool. These are the PITCH-ONLY, even-rhythm stages (no rests → clean exact-match
+# grading); rhythm is a separate strand (see the RD track) and pitch+rhythm
+# integration waits on new generation logic, so it is intentionally absent here.
+#
+# Design rules enforced against the review pass (see the doc):
+#   * ONE new variable per rung — a rung raises length OR introduces one interval
+#     class, never both. Steps are pushed to length 6 (DD5) BEFORE any leap, then
+#     length resets to 4 for thirds (DD6) and again for 4ths/5ths (DD7).
+#   * NO immediate repeats in any pitch-only stage — enforced via `min_step >= 1`
+#     (a repeat is an adjacent step of 0, which `min_step` rejects). Repeats carry
+#     no pitch information in even rhythm and smuggle in a counting/rhythm task.
+#   * INTERVAL CEILING is hard per stage via `max_step`; `max_step <= 4` (a 5th)
+#     means the strand never produces a 6th.
+#   * OBJECTIVE COVERAGE is enforced, not hoped for: DD8 pairs the tendency
+#     resolution rule with `require_present_any=(ti)` so EVERY item actually
+#     contains ti→do (the review found the old tendency stage claimed ti→do yet
+#     produced none). tests/test_dictation_ladder.py asserts these invariants.
+#
+# A short priming floor (DP0–DP2) sits below the old first rung: a true beginner
+# needs single-degree identification and 2-note fragments before 3-note melodies.
 _DTRIAD = (D1, D3, D5)
 _DPENTA = (D1, D2, D3, D4, D5)
 _DFULL = (D1, D2, D3, D4, D5, D6, D7, D8)
+_DFULL_L = (DL7, *_DFULL)  # full scale + the lower leading tone (ti, below do)
+
+# DP0 · Tonic Echo — hear the key, then identify ONE degree against it. A single
+# note is not a "melody" (the generator correctly rejects monotone sequences), so
+# this rung is a fixed set the builder emits directly rather than generating. The
+# pillars {do, mi, so} are the most stable anchors to start from.
+DICTATION_PRIMING_SINGLETONS: tuple[tuple[int, ...], ...] = ((D1,), (D3,), (D5,))
 
 DICTATION_STAGES: list[Stage] = [
+    # ---- Priming floor: below the old first rung ----
+    Stage(
+        "DP1", "Two-Note Pillars", "dictation",
+        pool=_DTRIAD, start_pool=_DTRIAD, end_pool=_DTRIAD,
+        max_step=4, min_step=2, length=2, count=6,
+        require_recovery=False, max_direction_changes=1,
+        notes="Two triad tones, either direction: relate a second stable pitch to "
+              "the tonic. The true rung 1.",
+    ),
+    Stage(
+        "DP2", "Two-Note Step", "dictation",
+        pool=_DPENTA, start_pool=_DPENTA, end_pool=_DPENTA,
+        max_step=1, min_step=1, length=2, count=8,
+        require_recovery=False, max_direction_changes=1,
+        notes="A single adjacent step up or down, incl. the mi–fa half-step: "
+              "hear step-size before stringing steps together.",
+    ),
+    # ---- Length ramp on STEPS ONLY (isolate length from leaps) ----
     Stage(
         "DD1", "The Triad Skeleton", "dictation",
         pool=_DTRIAD, start_pool=_DTRIAD, end_pool=_DTRIAD,
-        max_step=4, min_step=2, length=3, count=8,
+        max_step=4, min_step=2, length=3, count=6, min_distinct=3,
         require_recovery=False, max_direction_changes=2,
-        notes="do-mi-so fragments up/down: hear the stable pitches against a key.",
+        notes="The six orderings of do-mi-so (min_distinct=3 pins them to the true "
+              "permutations): hear the stable pitches against a firm key. Leaps "
+              "here land only on triad tones (the easy case).",
     ),
     Stage(
         "DD2", "Stepwise Neighbors", "dictation",
-        pool=_DPENTA, start_pool=_DTRIAD, end_pool=_DTRIAD,
-        max_step=1, length=3, count=8, min_distinct=2, require_recovery=False,
-        notes="Short conjunct fragments: hear step vs. skip.",
+        pool=_DPENTA, start_pool=_DTRIAD, end_pool=(D1, D3, D5),
+        max_step=1, min_step=1, length=3, count=8, min_distinct=2,
+        require_recovery=False,
+        notes="Short conjunct fragments, mi–fa half-step featured: step vs. skip.",
     ),
     Stage(
         "DD3", "The Pentachord", "dictation",
-        pool=_DPENTA, start_pool=_DTRIAD, end_pool=_DTRIAD,
-        max_step=1, length=4, count=12, min_distinct=3,
-        notes="Fuller stepwise motion inside do–sol.",
+        # Length-4 stepwise with no repeats flips parity 3 times, so a triad->triad
+        # phrase is impossible (all triad tones are even indices). Allow any
+        # pentachord launch/arrival so the stage yields both closing shapes
+        # (fa-mi-re-do) and open ones (do-re-mi-fa); scoring still prefers tonic
+        # arrivals.
+        pool=_DPENTA, start_pool=_DPENTA, end_pool=_DPENTA,
+        max_step=1, min_step=1, length=4, count=12, min_distinct=3,
+        notes="Length 4, stepwise, traversing do–sol (fa in context).",
     ),
     Stage(
         "DD4", "Into the Upper Scale", "dictation",
-        pool=_DFULL, start_pool=_DTRIAD, end_pool=(D1, D3, D5, D6, D8),
-        max_step=1, length=5, count=12, min_distinct=3,
+        pool=_DFULL, start_pool=_DPENTA, end_pool=(D1, D3, D5, D6, D8),
+        max_step=1, min_step=1, length=5, count=14, min_distinct=3,
         require_present_any=(D6, D7, D8),
-        notes="Stepwise phrases (length 5) that reach up to la/ti/do′ and settle.",
+        notes="Length 5, stepwise, reaching la/ti/do′ and settling.",
     ),
     Stage(
-        "DD6", "Longer Phrases, Even Rhythm", "dictation",
-        pool=_DFULL, start_pool=_DTRIAD, end_pool=(D1, D5, D8),
-        max_step=2, length=5, count=14, max_leaps=2, min_distinct=4,
-        notes="Length/chunking: 5-note phrases, steps + occasional 3rd.",
+        "DD5", "Long Stepwise Phrases", "dictation",
+        pool=_DFULL, start_pool=_DPENTA, end_pool=(D1, D3, D5, D6, D8),
+        max_step=1, min_step=1, length=6, count=18, min_distinct=4,
+        require_present_any=(D6, D7, D8),
+        notes="Length pushed to 6 with STEPS ONLY — length is the sole new "
+              "variable before any leap appears. Pure chunking/memory.",
     ),
+    # ---- Leaps enter — length RESETS to 4, one interval class at a time ----
     Stage(
-        "DD8", "Thirds & the Triad", "dictation",
+        "DD6", "Skips of a Third", "dictation",
         pool=_DFULL, start_pool=_DTRIAD, end_pool=(D1, D3, D5, D8),
-        max_step=2, length=4, count=12, require_leap=True, min_distinct=3,
-        notes="Feature 3rds/triad leaps — the most audible leaps first.",
+        max_step=2, min_step=1, length=4, count=16,
+        require_leap=True, require_leap_min=2, max_leaps=2, min_distinct=3,
+        notes="Reset to length 4; add the 3rd (the most audible leap). Steps + "
+              "≥1 third, ceiling a 3rd.",
     ),
     Stage(
-        "DD9", "Fourths & Fifths", "dictation",
-        pool=(DL7, *_DFULL), start_pool=_DTRIAD, end_pool=(D1, D5, D8),
-        max_step=4, length=5, count=12, require_leap_min=3, max_leaps=2,
-        require_recovery=True, min_distinct=4,
-        notes="Hear a P4/P5 (no tritone), buffered by steps.",
+        "DD7", "Fourths & Fifths", "dictation",
+        pool=_DFULL_L, start_pool=_DTRIAD, end_pool=(D1, D5, D8),
+        max_step=4, min_step=1, length=4, count=16,
+        require_leap_min=3, max_leaps=2, require_recovery=True, min_distinct=3,
+        notes="Still length 4; add the P4/P5 (no tritone), landing on framework "
+              "tones and recovering by step. Ceiling a 5th — never a 6th.",
     ),
+    # ---- Length grows again; then the capstone ----
     Stage(
-        "DD10", "Tendency Tones by Ear", "dictation",
-        pool=_DFULL, start_pool=(D1, D2, D3, D5), end_pool=_DTRIAD,
-        max_step=1, length=5, count=12, min_distinct=3,
+        "DD8", "Tendency Tones (the leading tone)", "dictation",
+        pool=_DFULL_L, start_pool=(D1, D2, D3, D4, D5), end_pool=(D1, D3, D5, D8),
+        max_step=2, min_step=1, length=5, count=16, min_distinct=3,
+        max_leaps=2, require_recovery=False,
         require_tendency_present=True, require_tendency_resolution=True,
-        notes="Hear ti→do and fa→mi resolving by half-step (repetition around the "
-              "resolving tone is expected here).",
+        require_present_any=(D7, DL7),
+        # Only the leading tone is held to resolution here; fa is left free.
+        # Forcing EVERY fa to descend (the generic default) rejects any ascending
+        # line through fa — even the plain major scale fa-so — and starved the
+        # stage to ~4 items. ti is the tendency the review found missing, so we
+        # force it: require_present_any=(ti, ti,) + resolution => ti→do in EVERY
+        # item. fa→mi is trained across the stepwise stages (DD2's so-fa-mi …) and
+        # still appears here. Thirds are already learned (DD6/DD7), so approaching
+        # the leading tone by a ≤3rd is not a new variable — it just lifts yield
+        # and musicality (fa-mi-so-ti-do′, so-fa-la-ti-do′).
+        tendency_up_from=(6,), tendency_down_from=(),
+        notes="Foreground the leading tone: ti→do resolves in every item (the "
+              "review found the old tendency stage claimed ti→do yet produced "
+              "none). Length grows 4→5; no new leap class (≤3rd, already learned).",
     ),
     Stage(
-        "DD11", "Free Diatonic Dictation", "dictation",
-        pool=(DL7, *_DFULL), start_pool=_DPENTA, end_pool=(D1, D3, D5, D8),
-        max_step=4, length=6, count=16, max_leaps=3, min_distinct=5,
-        require_recovery=False,
-        notes="Mixed intervals, longer phrase: the exit skill.",
+        "DD9", "Free Diatonic (capstone)", "dictation",
+        pool=_DFULL_L, start_pool=_DPENTA, end_pool=(D1, D3, D5, D8),
+        max_step=4, min_step=1, length=6, count=20, max_leaps=2,
+        require_recovery=True, require_tendency_present=True, min_distinct=5,
+        notes="Combine everything: length 6, steps + learned leaps (ceiling a "
+              "5th), a tendency tone present, stepwise recovery after leaps, "
+              "resolving to a stable tone. The exit skill → transcribe real music.",
     ),
 ]
 

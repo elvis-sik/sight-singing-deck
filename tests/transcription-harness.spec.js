@@ -211,11 +211,48 @@ test("full bar reports completion and clear resets it", async ({ page }) => {
   await tapStaff(page, 0, "G4");
 
   await expect(page.locator("#transcribe-status")).toContainText(
-    "Bar complete"
+    "All 4 beats filled"
   );
 
   await page.locator("#transcribe-reset").click();
   expect((await debugState(page)).events).toHaveLength(0);
+});
+
+test("multi-bar melody (6 quarters) sizes the grid and accepts notes past bar 1", async ({
+  page,
+}) => {
+  await page.goto("/debug/transcription-harness-multibar.html");
+  await page.waitForSelector(".ss-editor-overlay");
+
+  // A 6-quarter phrase is 1.5 bars → the editor lays out 6 beats (not "out of
+  // scope"), so the beat bar has 6 cells, not the single-bar 4.
+  await expect(page.locator("#transcribe-beatbar .ss-beat")).toHaveCount(6);
+
+  // Place all six, including the two in bar 2 (units 8 and 10).
+  const target = [
+    [0, "G4"],
+    [2, "F4"],
+    [4, "G4"],
+    [6, "A4"],
+    [8, "B4"],
+    [10, "C5"],
+  ];
+  for (const [unit, pitch] of target) {
+    await tapStaff(page, unit, pitch);
+  }
+
+  const state = await debugState(page);
+  expect(state.events).toEqual(
+    target.map(([unit, pitch]) => ({
+      kind: "note",
+      pitch,
+      duration: "q",
+      startUnit: unit,
+    }))
+  );
+  await expect(page.locator("#transcribe-status")).toContainText(
+    "All 6 beats filled"
+  );
 });
 
 test("review page compares the saved answer with the target", async ({

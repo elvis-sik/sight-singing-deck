@@ -80,6 +80,7 @@ apkg:
 	$(UV) run --extra deck python scripts/build_transcription_debug_deck.py
 	$(UV) run --extra deck python scripts/build_transcription_integration_debug_deck.py
 	$(UV) run --extra deck python scripts/build_notetype_smoke_deck.py
+	$(UV) run --extra deck python scripts/build_dictation_deck.py
 
 workbench-dockerfile:
 	$(WORKBENCH) dockerfile --out $(WORKBENCH_DOCKERFILE)

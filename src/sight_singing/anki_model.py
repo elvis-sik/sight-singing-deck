@@ -607,6 +607,85 @@ RHYTHM_FRONT_TEMPLATE = FRONT_TEMPLATE.replace(
 ).replace("Sing this melody.", "Read and clap this rhythm (one pitch — it's all timing).")
 RHYTHM_BACK_TEMPLATE = BACK_TEMPLATE
 
+# --- Dictation note type ------------------------------------------------------
+# Dictation is its own curriculum (see DICTATION_CURRICULUM.md) with its own deck
+# tree and pool. It reuses the Transcribe card (hear -> notate) but ships as its
+# OWN single-card note type, so a dictation melody generates exactly one card and
+# no Sing sibling — the "conditional card generation" goal, reached with a
+# one-template model instead of editing the shared, already-shipped Sing/Transcribe
+# model.
+#
+# Listen-count mechanic: free replay is the trap of self-study dictation (a phrase
+# you can replay forever stops being a memory test). The front counts plays and
+# shows a suggested effort-grade; the thresholds ride on the card (ListenTargets),
+# so they scale with stage difficulty and stay user-editable. Count + suggestion
+# live on the FRONT, where the state is reliable — Anki front->back JS state does
+# not cross platforms (see the AnkiDroid cross-platform work).
+DICTATION_MODEL_ID = 2_948_817_018
+DICTATION_MODEL_NAME = "Dictation (v1)"
+DICTATION_FIELD_NAMES = FIELD_NAMES + ["ListenTargets"]
+
+_LISTEN_WIDGET = """
+<div id="listen-targets" style="display:none;">{{ListenTargets}}</div>
+<div id="ss-listen" style="margin:.5rem 0;font:600 .85rem/1.3 system-ui,sans-serif;opacity:.85;display:flex;gap:.6rem;justify-content:center;flex-wrap:wrap;">
+  <span id="ss-listen-count">Listens: 1</span>
+  <span id="ss-listen-hint"></span>
+</div>
+""".strip()
+
+# Runs on the front. Counts the melody's initial autoplay as listen #1 and each
+# "Replay melody" press thereafter, updating a live suggested grade from the
+# per-card thresholds. Uses only var/function (Anki re-evaluates card scripts) and
+# contains no `{{`/`}}` (Anki templating) or `</script>`.
+_LISTEN_SCRIPT = """
+<script>
+(function () {
+  var targets = { good: 2, hard: 4 };
+  try {
+    var el = document.getElementById("listen-targets");
+    if (el && el.textContent.trim()) {
+      var t = JSON.parse(el.textContent.trim());
+      if (t && typeof t.good === "number" && typeof t.hard === "number") targets = t;
+    }
+  } catch (e) {}
+  var count = 1;
+  function suggestion(n) {
+    if (n <= targets.good) return "Good";
+    if (n <= targets.hard) return "Hard";
+    return "Again";
+  }
+  function render() {
+    var c = document.getElementById("ss-listen-count");
+    var h = document.getElementById("ss-listen-hint");
+    if (c) c.textContent = "Listens: " + count;
+    if (h) h.textContent = "\\u2192 " + suggestion(count) +
+      " (\\u2264" + targets.good + " Good \\u00b7 \\u2264" + targets.hard + " Hard)";
+  }
+  window.dictateReplay = function () {
+    count += 1;
+    render();
+    if (typeof playMelody === "function") return playMelody();
+    return false;
+  };
+  render();
+})();
+</script>
+""".strip()
+
+DICTATION_FRONT_TEMPLATE = (
+    TRANSCRIBE_FRONT_TEMPLATE
+    .replace('data-ss-badge="Transcribe"', 'data-ss-badge="Dictation"')
+    .replace("return playMelody();", "return dictateReplay();")
+    .replace(
+        '<p class="ss-prompt ss-prompt-transcribe">Write down the melody you hear.</p>',
+        _LISTEN_WIDGET
+        + '\n<p class="ss-prompt ss-prompt-transcribe">Write the melody you hear.</p>',
+    )
+    + "\n"
+    + _LISTEN_SCRIPT
+)
+DICTATION_BACK_TEMPLATE = TRANSCRIBE_BACK_TEMPLATE
+
 FRONT_TEMPLATE = _fill(FRONT_TEMPLATE)
 BACK_TEMPLATE = _fill(BACK_TEMPLATE)
 TRANSCRIBE_FRONT_TEMPLATE = _fill(TRANSCRIBE_FRONT_TEMPLATE)
@@ -615,6 +694,8 @@ ERROR_FRONT_TEMPLATE = _fill(ERROR_FRONT_TEMPLATE)
 ERROR_BACK_TEMPLATE = _fill(ERROR_BACK_TEMPLATE)
 RHYTHM_FRONT_TEMPLATE = _fill(RHYTHM_FRONT_TEMPLATE)
 RHYTHM_BACK_TEMPLATE = _fill(RHYTHM_BACK_TEMPLATE)
+DICTATION_FRONT_TEMPLATE = _fill(DICTATION_FRONT_TEMPLATE)
+DICTATION_BACK_TEMPLATE = _fill(DICTATION_BACK_TEMPLATE)
 
 
 def make_model() -> genanki.Model:
@@ -664,6 +745,26 @@ def make_error_model() -> genanki.Model:
                 "name": "FindError",
                 "qfmt": ERROR_FRONT_TEMPLATE,
                 "afmt": ERROR_BACK_TEMPLATE,
+            },
+        ],
+        css=model_css(),
+    )
+
+
+def make_dictation_model() -> genanki.Model:
+    """Single-card dictation note type (hear -> notate) with the listen-count UI.
+
+    One template, so a dictation melody yields exactly one card (no Sing sibling).
+    """
+    return genanki.Model(
+        model_id=DICTATION_MODEL_ID,
+        name=DICTATION_MODEL_NAME,
+        fields=[{"name": n} for n in DICTATION_FIELD_NAMES],
+        templates=[
+            {
+                "name": "Dictate",
+                "qfmt": DICTATION_FRONT_TEMPLATE,
+                "afmt": DICTATION_BACK_TEMPLATE,
             },
         ],
         css=model_css(),
