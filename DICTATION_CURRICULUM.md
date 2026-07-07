@@ -130,6 +130,29 @@ the RD sub-track, not here — see *Parallel sub-tracks*.)
 structural stages + a harmonic-minor leading-tone stage), exactly as the
 sight-singing ladder mirrors major → minor.
 
+## Producing the exercises (generation, not hand-authoring)
+
+Each stage's melodies are **generated** from its spec by the existing engine
+(`generate/melody_gen.py`: enumerate under the pool / step / required-tone rules →
+hard-rule filter → musicality score → diversity sample), exactly as the
+sight-singing stages are. So "designing a stage" means writing and **tuning its
+`Stage` spec**, then generating and curating the output — not authoring melodies by
+hand. This still involves real design work in two places:
+
+- **Per-stage tuning.** Specs routinely need adjustment for *yield* (a too-tight
+  spec collapses to a handful — the sight-singing M0_2 / M6 / M8 stages all needed
+  this) and for *quality* (a loose stepwise spec produces dull repeated-note
+  noodling — a draft DD2 gave `do-do-re-do`, `do-re-do-do`). Expect a tune pass per
+  stage, likely including a dictation-appropriate **diversity rule** (penalise
+  excessive repeated notes; reward scale coverage). This is the bulk of the
+  encoding effort.
+- **New generation logic for the rhythmic stages.** The current melodic generator
+  produces **even** (all-quarter) melodies only; rhythm lives solely in the
+  single-pitch Rhythm generator. DD5 and DD7 ("pitch + rhythm") require *combining*
+  a pitched contour with a rhythmic pattern — new code (pair a generated contour
+  with a generated rhythm bar, or teach the melodic generator to assign durations).
+  Until it exists, DD5 / DD7 can't be generated; DD1–DD4, DD6, DD8–DD11 can today.
+
 ## Parallel sub-tracks
 
 - **Interval dictation** (`IVD2…IVD8`) — hear two notes, notate the interval. **The
