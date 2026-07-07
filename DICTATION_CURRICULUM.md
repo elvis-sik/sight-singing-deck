@@ -284,11 +284,40 @@ What the editor does **not** yet input is the *advanced* rhythmic values:
 stages (the RD equivalents of the sight-singing R6–R9). Add them to the editor
 before those specific stages; everything else is unblocked.
 
+### BLOCKER (found 2026-07-07 building the deck): the editor is single-bar
+
+The transcription editor accepts **exactly one 4/4 bar**. `targetEventsFromData`
+returns `[]` unless the events sum to precisely `BAR_UNITS` (8 eighth-units = 4
+beats), and `supportedData` then shows *"This melody is outside the current
+transcription exercise scope."* So only the **length-4** dictation stages
+(**DD3, DD6, DD7** — four quarters = one bar) can be entered today. The variable
+length ramp that is the whole point of this curriculum — DP0–DP2 (1–2 notes), DD1
+/ DD2 (3 notes), and DD4 / DD5 / DD8 / DD9 (5–6 notes, i.e. 1.5–2 bars) — is
+**rejected by the editor**. Verified in-browser: a DD6 (len-4) card renders the
+staff + toolbar + the new listen-count gauge and works end to end; a DD5 (len-6)
+card shows the out-of-scope message.
+
+This is the one real blocker to shipping the full ladder, and it lives in the
+**shared** `_transcription.js` (the live sight-singing Transcribe card uses the
+same editor), so it must be extended carefully — multi-bar rendering, pointer
+x → (bar, unit) mapping, cross-bar placement/validation — without regressing the
+single-bar Sing/Transcribe deck already in Elvis's collection. Until then, the
+dictation build is gated: `scripts/build_dictation_deck.py` generates the whole
+ladder and the deck assembles, but only DD3/DD6/DD7 cards are answerable. The
+priming floor and the length ramp are exactly the stages the editor can't yet
+take, so a partial ship would drop the pedagogy that motivated rev 3. **Next
+task: multi-bar transcription-editor input.**
+
 ## Phasing
 
 1. **Phase 1 — melodic spine, major** (DP0–DD9, pitch-only) **plus the listen-count
-   mechanic** on the Transcribe card. Encoded and test-guarded now; the pitch-only
-   spine needs no rest/rhythm editor work. The bulk of the value.
+   mechanic**. Stages encoded + test-guarded; the dictation note type
+   (`make_dictation_model`, single Dictate card + listen-count), the build
+   (`scripts/build_dictation_deck.py` → `out/dictation-curriculum.apkg`, own
+   `Dictation` deck tree), and the listen-count UI are all done and verified for
+   length-4 stages. **Blocked on the single-bar editor** (above) for the rest of
+   the ramp → **Phase 1a: multi-bar transcription-editor input** is the immediate
+   prerequisite to shipping the full spine.
 2. **Phase 2 — minor** (ND-series).
 3. **Phase 3 — interval dictation + the basic Rhythm-Dictation ladder** (RD, basic
    values). RD is independent and can be practised earlier, but this is when it's
