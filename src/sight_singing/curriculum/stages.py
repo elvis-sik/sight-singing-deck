@@ -35,6 +35,10 @@ class Stage:
     #   diatonic size (1=2nd .. 4=5th). Forces a *headline* stage (M6/M8) to
     #   actually contain its named interval, not just any >=3rd.
     max_leaps: int | None = None  # cap on notes reached by a >2nd
+    # Minimum number of DISTINCT diatonic indices the melody must use. Anti-noodle
+    # rule for dictation: a loose stepwise spec otherwise yields dull neighbour
+    # oscillation (do-re-do-do); requiring N distinct pitches forces real motion.
+    min_distinct: int = 0
     # Reject any adjacent melodic tritone (6 semitones — a fa<->ti leap). Off in
     # tonal music for beginners: it is the single hardest interval to sing and is
     # avoided as a bare leap. Mode-aware (see melody_gen), so it also strips the
@@ -282,6 +286,83 @@ INTERVAL_STAGES: list[Stage] = [
 ]
 
 
+# --- Dictation curriculum (melodic spine) ----------------------------------
+# See DICTATION_CURRICULUM.md. Dictation is ordered by phrase length + memory +
+# audibility, not vocal difficulty, and draws its own pool. These are the
+# PITCH-ONLY, even-rhythm stages (no rests → clean exact-match grading); the
+# pitch+rhythm stages DD5 and DD7 wait on new generation logic (combine a pitched
+# contour with a rhythmic pattern) and are intentionally absent here. Length ramps
+# 3→4→5→6 and resets to 4 when the leap axis is introduced (DD8), so only one
+# difficulty axis moves at a time.
+_DTRIAD = (D1, D3, D5)
+_DPENTA = (D1, D2, D3, D4, D5)
+_DFULL = (D1, D2, D3, D4, D5, D6, D7, D8)
+
+DICTATION_STAGES: list[Stage] = [
+    Stage(
+        "DD1", "The Triad Skeleton", "dictation",
+        pool=_DTRIAD, start_pool=_DTRIAD, end_pool=_DTRIAD,
+        max_step=4, min_step=2, length=3, count=8,
+        require_recovery=False, max_direction_changes=2,
+        notes="do-mi-so fragments up/down: hear the stable pitches against a key.",
+    ),
+    Stage(
+        "DD2", "Stepwise Neighbors", "dictation",
+        pool=_DPENTA, start_pool=_DTRIAD, end_pool=_DTRIAD,
+        max_step=1, length=3, count=8, min_distinct=2, require_recovery=False,
+        notes="Short conjunct fragments: hear step vs. skip.",
+    ),
+    Stage(
+        "DD3", "The Pentachord", "dictation",
+        pool=_DPENTA, start_pool=_DTRIAD, end_pool=_DTRIAD,
+        max_step=1, length=4, count=12, min_distinct=3,
+        notes="Fuller stepwise motion inside do–sol.",
+    ),
+    Stage(
+        "DD4", "Into the Upper Scale", "dictation",
+        pool=_DFULL, start_pool=_DTRIAD, end_pool=(D1, D3, D5, D6, D8),
+        max_step=1, length=5, count=12, min_distinct=3,
+        require_present_any=(D6, D7, D8),
+        notes="Stepwise phrases (length 5) that reach up to la/ti/do′ and settle.",
+    ),
+    Stage(
+        "DD6", "Longer Phrases, Even Rhythm", "dictation",
+        pool=_DFULL, start_pool=_DTRIAD, end_pool=(D1, D5, D8),
+        max_step=2, length=5, count=14, max_leaps=2, min_distinct=4,
+        notes="Length/chunking: 5-note phrases, steps + occasional 3rd.",
+    ),
+    Stage(
+        "DD8", "Thirds & the Triad", "dictation",
+        pool=_DFULL, start_pool=_DTRIAD, end_pool=(D1, D3, D5, D8),
+        max_step=2, length=4, count=12, require_leap=True, min_distinct=3,
+        notes="Feature 3rds/triad leaps — the most audible leaps first.",
+    ),
+    Stage(
+        "DD9", "Fourths & Fifths", "dictation",
+        pool=(DL7, *_DFULL), start_pool=_DTRIAD, end_pool=(D1, D5, D8),
+        max_step=4, length=5, count=12, require_leap_min=3, max_leaps=2,
+        require_recovery=True, min_distinct=4,
+        notes="Hear a P4/P5 (no tritone), buffered by steps.",
+    ),
+    Stage(
+        "DD10", "Tendency Tones by Ear", "dictation",
+        pool=_DFULL, start_pool=(D1, D2, D3, D5), end_pool=_DTRIAD,
+        max_step=1, length=5, count=12, min_distinct=3,
+        require_tendency_present=True, require_tendency_resolution=True,
+        notes="Hear ti→do and fa→mi resolving by half-step (repetition around the "
+              "resolving tone is expected here).",
+    ),
+    Stage(
+        "DD11", "Free Diatonic Dictation", "dictation",
+        pool=(DL7, *_DFULL), start_pool=_DPENTA, end_pool=(D1, D3, D5, D8),
+        max_step=4, length=6, count=16, max_leaps=3, min_distinct=5,
+        require_recovery=False,
+        notes="Mixed intervals, longer phrase: the exit skill.",
+    ),
+]
+
+
 STAGES_BY_ID = {
-    s.id: s for s in (*MAJOR_STAGES, *MINOR_STAGES, *INTERVAL_STAGES)
+    s.id: s
+    for s in (*MAJOR_STAGES, *MINOR_STAGES, *INTERVAL_STAGES, *DICTATION_STAGES)
 }

@@ -45,6 +45,8 @@ def passes_hard_rules(mel: tuple[int, ...], stage: Stage) -> bool:
         return False
     if len(set(mel)) == 1:  # monotone
         return False
+    if stage.min_distinct and len(set(mel)) < stage.min_distinct:
+        return False
     if not stage.allow_three_repeats and _max_run(mel) >= 3:
         return False
     if _direction_changes(mel) > stage.max_direction_changes:
