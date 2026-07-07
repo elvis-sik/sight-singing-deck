@@ -66,15 +66,26 @@ the same parameter space, ordered differently.
 ## Grading & the listen-count model
 
 **What "correct" means.** For these 1–2-bar drills the bar is a **perfect
-transcription** — exact pitches (right octaves) and exact rhythm. For diatonic,
-simple-rhythm material this is unambiguous: in a known key each staff position is a
-single diatonic pitch (no enharmonic choice — A minor's raised 7 is just G♯), and
-simple note values have one conventional spelling, so **exact match** is the right
-grader and there is no "multiple valid notations" problem. The one exception is
-*rhythm with ties/syncopation* (the advanced RD stages): there "correct" means the
-same **sounded** rhythm, not the same glyph — a half note equals two tied quarters
-— so the grader must compare by onset + duration. Non-issue until those stages;
-flagged so it isn't forgotten.
+transcription** — exact pitches (right octaves) and exact rhythm. Two grading
+regimes, split by whether a stage contains rests/ties:
+
+- **Note-only, even-rhythm stages → exact match.** With no rests and no ties, each
+  event is a note of the fixed value and there is genuinely one spelling: in a
+  known key each staff position is a single diatonic pitch (no enharmonic choice —
+  A minor's raised 7 is just G♯), and a note of N beats has one notation (splitting
+  it needs a tie, and an *untied* split is two attacks — a different sound). So
+  exact match is correct and unambiguous. The pitch-only spine (DD1–DD4, DD6,
+  DD8–DD11) is deliberately kept rest-free to stay in this regime.
+- **Any stage with rests or ties → compare by *sounded* rhythm.** A rest has no
+  attack, so a 2-beat rest is validly written as a half rest **or** two quarter
+  rests (or four eighth rests) — tie-free, identical silence — and which spelling
+  is *conventional* is even position-dependent (a rest straddling the mid-bar beat
+  2–3 boundary should be broken; a full bar is a whole rest). Likewise a sustained
+  2-beat note may be a half note or two tied quarters. So "correct" means the same
+  **sounded rhythm** (onsets + durations, rests as gaps), not the same glyph. This
+  applies as soon as rests appear — **DD5, DD7, and the RD track** — not only to
+  the advanced tie/triplet stages. The grader normalises both the answer and the
+  learner's entry to a canonical sounded-rhythm form and compares those.
 
 **Grading is always manual, and the buttons mean effort.** You grade every card
 yourself with Anki's Again / Hard / Good / Easy, which for a skill drill correctly
@@ -188,7 +199,9 @@ The Transcribe editor **already accepts duration input**: it has a duration
 toolbar (`ss-durbar`) with **whole / half / quarter / eighth** values and a
 **rest** mode (`assets/_transcription.js`: `DURATION_ORDER`, `DURATION_LABELS`,
 `mode: note|rest|erase`). So basic rhythm dictation — the integrated **DD5 / DD7**
-and the basic **RD** stages — is buildable **now**, no editor changes.
+and the basic **RD** stages — needs no editor changes for *input*. (Grading is a
+separate matter: any stage with rests needs the sounded-rhythm equivalence grader
+— see *Grading & the listen-count model*.)
 
 What the editor does **not** yet input is the *advanced* rhythmic values:
 **dotted notes, ties/syncopation, and triplets** (`DURATION_ORDER` is only
@@ -236,6 +249,9 @@ Resolved (2026-07-07):
 Remaining (I choose sensible defaults; pilot tunes):
 
 - Exact per-stage **threshold values** and **length steps**.
-- **Advanced-rhythm editor work** (dotted / tie / triplet input) + the
-  **sounded-rhythm equivalence grader** — both deferred to the advanced-rhythm
-  phase; Phases 1–3 don't need them.
+- **Sounded-rhythm equivalence grader** — needed as soon as **rests** appear
+  (DD5 / DD7 / the RD track), because a rest decomposes into smaller rests tie-free
+  with identical sound. Not an advanced-only concern; it's a prerequisite for the
+  first rhythm-bearing stages. (The pitch-only spine doesn't need it.)
+- **Advanced-rhythm editor input** (dotted / tie / triplet values in the duration
+  palette) — a separate, later item for the advanced RD stages only.
