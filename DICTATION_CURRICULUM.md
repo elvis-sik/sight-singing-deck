@@ -202,8 +202,8 @@ before those specific stages; everything else is unblocked.
 2. **Overlap policy** — how much, if any, deliberate melody overlap with the
    sight-singing pool (default: near-zero; overlap only where you explicitly want
    a tune both ways).
-3. **Tree layout** — two branches under one `Sight Singing` umbrella
-   (`::Read` / `::Dictation`) vs. two separate top-level decks. Low stakes.
+3. **Tree layout** — **Decided (2026-07-07): `Dictation` is its own top-level
+   tree**, parallel to `Sight Singing`, with its own numbered tracks.
 4. **Difficulty dials** — how fast DD6/DD7 push toward 6+ notes, and the
    **listen-count rubric thresholds** (≤2 / 3–4 / >4 proposed). These are the two
    main knobs that set dictation difficulty; both worth calibrating against your
