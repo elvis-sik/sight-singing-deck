@@ -8,8 +8,10 @@ This supersedes the "dictation reuses the sight-singing material" stance in
 [`CURRICULUM.md`](CURRICULUM.md). Sight-singing stays as designed; this document
 covers only the parallel dictation path.
 
-> Status: **draft for review.** Nothing here is built yet. The stage ladder below
-> is a proposal to react to before it is encoded into `curriculum/stages.py`.
+> Status: **draft for review** (rev. 2 — incorporates the design-review pass: a
+> listen-count grading mechanic, a compressed D0, and pure rhythm moved out of the
+> melodic spine into the RD sub-track). Nothing here is built yet; the ladder is a
+> proposal to react to before it is encoded into `curriculum/stages.py`.
 
 ## Why a separate curriculum
 
@@ -21,7 +23,8 @@ they are **gated by different things**, so the optimal ordering diverges:
 | Vocal production / pitching a leap | **primary** | irrelevant (you're not singing) |
 | Range / tessitura | matters | irrelevant |
 | **Phrase length / working memory** | minor | **primary** — the core dictation skill |
-| **Rhythmic complexity** | a separate track; melodies stay even | **primary**, and best *isolated* first |
+| **Rhythmic complexity** | a separate track; melodies stay even | **primary**; isolated in its own RD track, then integrated |
+| **Hearings available** | n/a (you read at your own pace) | **the hidden axis** — free replay must be countered (see below) |
 | Interval **audibility** (is it easy to *hear*?) | secondary | **primary** — consonant/triadic first |
 | Tonal function (which degrees) | primary early | primary early (**shared** — the one axis both agree on) |
 
@@ -60,6 +63,25 @@ All of this reuses the existing `Stage` constraint-spec engine
 `forbid_tritone_leap`, `mode`, etc. A dictation stage is just a different point in
 the same parameter space, ordered differently.
 
+## The listen-count mechanic
+
+Free replay is the trap of self-study dictation: a 6-note phrase you can replay
+forever stops being a memory test — you peck it out two notes at a time across
+five hearings. Real dictation skill is extracting *more per hearing*, which is
+exactly why classroom dictation caps you at 3–4 playings. So the dictation card
+**counts plays and shows the count** ("Listens: 3"), and the **self-grade rubric
+is built around the count**, not around whether you eventually assembled the right
+notes:
+
+- correct in **≤2 listens → Good / Easy**
+- needed **3–4 listens → Hard**
+- **more than 4, or wrong → Again**
+
+This restores the scarcity that gives the length ramp (DD6–DD7) its meaning;
+without it the ramp measures patience, not audiation. Implementation is small: a
+play counter on the Transcribe front's melody button plus a rubric reminder on the
+back — no editor change. It applies to every dictation stage.
+
 ## The melodic ladder (major)
 
 Diatonic indices: `0`=do, `1`=re, `2`=mi, `3`=fa, `4`=so, `5`=la, `6`=ti,
@@ -67,40 +89,42 @@ Diatonic indices: `0`=do, `1`=re, `2`=mi, `3`=fa, `4`=so, `5`=la, `6`=ti,
 tonic + replayable audio); the tritone is excluded as a bare leap, same rule as
 sight-singing.
 
-**Phase D0 — Tonal anchoring (hear where you are).** Very short, high repetition.
-- **DD1 · Tonic & the Triad Skeleton** — pool `{0,2,4}`, length 2–3, even rhythm.
-  Identify the stable pitches against a firm tonal center.
-- **DD2 · The Triad, Both Directions** — pool `{0,2,4,7}`, length 3–4, even.
-  Arpeggio shapes up and down.
+**Phase D0 — Tonal anchoring (one short stage).** With cadence + tonic priming and
+free replay this is nearly free in-medium, so it's deliberately brief — a few days,
+not a runway. (Singing needed a long on-ramp for production nerves; dictation
+doesn't.)
+- **DD1 · The Triad Skeleton** — pool `{0,2,4,7}`, length 2–4, both directions,
+  even rhythm. Identify the stable pitches against a firm tonal center.
 
-**Phase D1 — Steps enter (memory begins).**
-- **DD3 · Stepwise Neighbors** — pool `{0,1,2,3,4}`, length 3–4, conjunct, even.
-  The task becomes hearing *step vs. skip*.
-- **DD4 · The Pentachord** — pool `{0..4}`, length 4, even, scalar.
-- **DD5 · Into the Upper Scale** — pool `{0..7}` (adds 5,6), length 4, even.
+**Phase D1 — Steps enter (the real start: step-vs-skip discrimination).**
+- **DD2 · Stepwise Neighbors** — pool `{0,1,2,3,4}`, length 3–4, conjunct, even.
+- **DD3 · The Pentachord** — pool `{0..4}`, length 4, even, scalar.
+- **DD4 · Into the Upper Scale** — pool `{0..7}` (adds 5,6), length 4, even.
 
-**Phase D2 — Rhythm, isolated then combined.**
-- **DD6 · Rhythm Alone** *(rhythm dictation)* — single repeated pitch; notate the
-  **rhythm** (quarters, halves, rests, eighth pairs). Pitch is trivial so rhythm
-  is the whole task. Uses the editor's existing duration toolbar + rest mode.
-- **DD7 · Pitch + Simple Rhythm** — pool `{0..4}`, length 3–4, one non-even value
-  (a half, an eighth pair). Combine the two now-separately-trained skills.
+**Phase D2 — Pitch + rhythm, integrated.** (Pure rhythm-alone dictation lives in
+the RD sub-track, not here — see *Parallel sub-tracks*.)
+- **DD5 · Pitch + Simple Rhythm** — pool `{0..4}`, length 3–4, one non-even value
+  (a half, an eighth pair). Integrate pitch with rhythm trained separately in RD.
 
-**Phase D3 — Length grows (chunking).**
-- **DD8 · Longer Phrases, Even Rhythm** — pool `{0..7}`, length 5–6, even. Pure
-  memory/chunking. (Length does the work a limited number of hearings would do in
-  a classroom, since a card can always be replayed.)
-- **DD9 · Longer + Rhythm** — pool `{0..7}`, length 5–6, mixed rhythm.
+**Phase D3 — Length grows (chunking — the core dictation skill).**
+- **DD6 · Longer Phrases, Even Rhythm** — pool `{0..7}`, length 5–6, even. Pure
+  memory/chunking; the listen-count mechanic above is what keeps this honest.
+- **DD7 · Longer + Rhythm** — pool `{0..7}`, length 5–6, mixed rhythm.
 
 **Phase D4 — Hearing leaps (ordered by *audibility*, not vocal difficulty).**
-- **DD10 · Thirds & the Triad** — feature 3rds/triad leaps (consonant, easiest to
-  hear), length 4–5.
-- **DD11 · Fourths & Fifths** — feature P4/P5 (tonal, recognizable), length 4–5.
+- **DD8 · Thirds & the Triad** — feature 3rds/triad leaps, length 4–5.
+- **DD9 · Fourths & Fifths** — feature P4/P5 (no tritone), length 4–5.
 
-**Phase D5 — Tendency tones by ear.**
-- **DD12 · Ti Wants Do / Fa Wants Mi** — foreground the pulls; hearing resolution,
+  *Why triads before 4ths/5ths here:* every card is cadence-primed, so this is a
+  *functional* judgement — in a movable-do context do–mi–so leaps are the easiest
+  to identify by function, even though as bare isolated intervals P4/P5 are the
+  more recognizable anchors. The priming makes the triadic-first order correct for
+  this deck specifically.
+
+**Phase D5 — Tendency tones, then free.**
+- **DD10 · Ti Wants Do / Fa Wants Mi** — foreground the pulls; hearing resolution,
   length 4–5.
-- **DD13 · Free Diatonic Dictation** — mixed intervals/rhythm, length 6.
+- **DD11 · Free Diatonic Dictation** — mixed intervals/rhythm, length 6.
 
 **Minor (ND-series).** Mirror the above in la-based minor (natural minor
 structural stages + a harmonic-minor leading-tone stage), exactly as the
@@ -108,11 +132,17 @@ sight-singing ladder mirrors major → minor.
 
 ## Parallel sub-tracks
 
-- **Interval dictation** (`IVD2…IVD8`) — hear two notes, notate the interval; the
-  dictation counterpart to the interval-singing drills. Cheap: reuse the interval
-  stage specs, dictation card only.
-- **Rhythm dictation** (`RD1…RD9`) — DD6 expanded into a full ladder paralleling
-  the sight-singing Rhythm track. *(Editor dependency.)*
+- **Interval dictation** (`IVD2…IVD8`) — hear two notes, notate the interval. **The
+  first note is shown on the staff; you place only the second**, so the task is
+  "hear the interval," not "guess the starting position." Dictation counterpart to
+  the interval-singing drills; reuse the interval stage specs, dictation card only.
+- **Rhythm dictation** (`RD1…RD9`) — the **sole home** for pure rhythm-on-one-pitch
+  dictation (kept out of the melodic spine to avoid duplication): single repeated
+  pitch, notate the rhythm. A full ladder paralleling the sight-singing Rhythm
+  track. Start it **in parallel** with the melodic spine (around DD5) so rhythm is
+  trained on its own before DD5/DD7 ask you to integrate it. Basic values use the
+  editor's existing duration toolbar + rest mode; the advanced values need editor
+  work (see below).
 - **Transfer** (other keys, bass clef) — later, same as sight-singing; dictation
   in a new key/clef is a distinct and worthwhile skill.
 
@@ -121,8 +151,8 @@ sight-singing ladder mirrors major → minor.
 The Transcribe editor **already accepts duration input**: it has a duration
 toolbar (`ss-durbar`) with **whole / half / quarter / eighth** values and a
 **rest** mode (`assets/_transcription.js`: `DURATION_ORDER`, `DURATION_LABELS`,
-`mode: note|rest|erase`). So basic rhythm dictation — **DD6, DD7, DD9** and the
-basic Rhythm-Dictation stages — is buildable **now**, no editor changes.
+`mode: note|rest|erase`). So basic rhythm dictation — the integrated **DD5 / DD7**
+and the basic **RD** stages — is buildable **now**, no editor changes.
 
 What the editor does **not** yet input is the *advanced* rhythmic values:
 **dotted notes, ties/syncopation, and triplets** (`DURATION_ORDER` is only
@@ -132,11 +162,13 @@ before those specific stages; everything else is unblocked.
 
 ## Phasing
 
-1. **Phase 1 — melodic spine, major** (DD1–DD13, incl. the basic-rhythm DD6/DD7/DD9):
-   all buildable now (editor already does pitch + basic durations + rests). The
-   bulk of the value.
+1. **Phase 1 — melodic spine, major** (DD1–DD11) **plus the listen-count mechanic**
+   on the Transcribe card. All buildable now (editor already does pitch + basic
+   durations + rests). The bulk of the value.
 2. **Phase 2 — minor** (ND-series).
-3. **Phase 3 — interval dictation + basic rhythm dictation ladder**.
+3. **Phase 3 — interval dictation + the basic Rhythm-Dictation ladder** (RD, basic
+   values). RD is independent and can be practised earlier, but this is when it's
+   built out.
 4. **Phase 4 — advanced rhythm dictation** (dotted / ties / triplets): after the
    editor's duration palette gains those values.
 5. **Phase 5 — transfer** (other keys, bass clef).
@@ -149,8 +181,9 @@ before those specific stages; everything else is unblocked.
    a tune both ways).
 3. **Tree layout** — two branches under one `Sight Singing` umbrella
    (`::Read` / `::Dictation`) vs. two separate top-level decks. Low stakes.
-4. **Length-ramp aggressiveness** — how fast DD8/DD9 push to 6+ notes (this is the
-   main dial that makes dictation hard; worth calibrating against your own ear in
-   the study pilot).
+4. **Difficulty dials** — how fast DD6/DD7 push toward 6+ notes, and the
+   **listen-count rubric thresholds** (≤2 / 3–4 / >4 proposed). These are the two
+   main knobs that set dictation difficulty; both worth calibrating against your
+   own ear in the study pilot.
 5. **Advanced-rhythm editor work** — extend the duration palette with dotted /
    tie / triplet input now (unlocks Phase 4) or defer; Phases 1–3 don't need it.
