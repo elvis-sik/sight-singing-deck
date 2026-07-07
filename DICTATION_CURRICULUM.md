@@ -63,24 +63,37 @@ All of this reuses the existing `Stage` constraint-spec engine
 `forbid_tritone_leap`, `mode`, etc. A dictation stage is just a different point in
 the same parameter space, ordered differently.
 
-## The listen-count mechanic
+## Grading & the listen-count model
 
-Free replay is the trap of self-study dictation: a 6-note phrase you can replay
-forever stops being a memory test — you peck it out two notes at a time across
-five hearings. Real dictation skill is extracting *more per hearing*, which is
-exactly why classroom dictation caps you at 3–4 playings. So the dictation card
-**counts plays and shows the count** ("Listens: 3"), and the **self-grade rubric
-is built around the count**, not around whether you eventually assembled the right
-notes:
+**What "correct" means.** For these 1–2-bar drills the bar is a **perfect
+transcription** — exact pitches (right octaves) and exact rhythm. For diatonic,
+simple-rhythm material this is unambiguous: in a known key each staff position is a
+single diatonic pitch (no enharmonic choice — A minor's raised 7 is just G♯), and
+simple note values have one conventional spelling, so **exact match** is the right
+grader and there is no "multiple valid notations" problem. The one exception is
+*rhythm with ties/syncopation* (the advanced RD stages): there "correct" means the
+same **sounded** rhythm, not the same glyph — a half note equals two tied quarters
+— so the grader must compare by onset + duration. Non-issue until those stages;
+flagged so it isn't forgotten.
 
-- correct in **≤2 listens → Good / Easy**
-- needed **3–4 listens → Hard**
-- **more than 4, or wrong → Again**
+**Grading is always manual, and the buttons mean effort.** You grade every card
+yourself with Anki's Again / Hard / Good / Easy, which for a skill drill correctly
+encode *how much effort the recall took* — which is what the scheduler needs. So
+the listen count is **not** a rival signal; it's an **advisory anchor** for that
+manual grade. The card counts plays, shows the count ("Listens: 3") and a
+suggested grade, and you press the button.
 
-This restores the scarcity that gives the length ramp (DD6–DD7) its meaning;
-without it the ramp measures patience, not audiation. Implementation is small: a
-play counter on the Transcribe front's melody button plus a rubric reminder on the
-back — no editor change. It applies to every dictation stage.
+Free replay is otherwise the trap of self-study dictation: a 6-note phrase you can
+replay forever stops being a memory test. Showing (and grading against) the count
+restores the scarcity that gives the length ramp its meaning. Implementation is
+small: a play counter on the Transcribe front's melody button + a suggested-grade
+reminder on the back — no editor change. Applies to every dictation stage.
+
+**Thresholds are per-stage defaults, editable.** The count→grade mapping can't be
+one absolute scale (2 listens is failure on DD1, excellent on DD9), so each stage
+ships **sensible defaults that scale with its difficulty**, stored on the card so a
+user can edit them. Starting shape: easy early stages expect ≤1–2 listens for Good;
+later stages allow more before Hard/Again.
 
 ## The melodic ladder (major)
 
@@ -196,17 +209,33 @@ before those specific stages; everything else is unblocked.
    editor's duration palette gains those values.
 5. **Phase 5 — transfer** (other keys, bass clef).
 
-## Open decisions (for review)
+## Decisions & remaining scope
 
-1. **Card-off mechanism** — conditional generation (recommended) vs. suspension.
-2. **Overlap policy** — how much, if any, deliberate melody overlap with the
-   sight-singing pool (default: near-zero; overlap only where you explicitly want
-   a tune both ways).
-3. **Tree layout** — **Decided (2026-07-07): `Dictation` is its own top-level
-   tree**, parallel to `Sight Singing`, with its own numbered tracks.
-4. **Difficulty dials** — how fast DD6/DD7 push toward 6+ notes, and the
-   **listen-count rubric thresholds** (≤2 / 3–4 / >4 proposed). These are the two
-   main knobs that set dictation difficulty; both worth calibrating against your
-   own ear in the study pilot.
-5. **Advanced-rhythm editor work** — extend the duration palette with dotted /
-   tie / triplet input now (unlocks Phase 4) or defer; Phases 1–3 don't need it.
+Resolved (2026-07-07):
+
+- **Card-off mechanism** — conditional card generation (a melody in one curriculum
+  generates only that card); not suspension.
+- **Overlap policy** — near-zero; overlap only where a tune is deliberately wanted
+  both ways.
+- **Tree layout** — `Dictation` is its **own top-level tree**, parallel to
+  `Sight Singing`, with its own numbered tracks.
+- **Grading** — perfect-transcription, exact match (sounded-rhythm equivalence only
+  in the advanced-rhythm stages); manual grade; listen count as an advisory anchor;
+  **per-stage, user-editable thresholds**.
+- **Target learner** — blank beginner (the deck ships publicly).
+- **Difficulty ramp is the author's job**, not the pilot's — a deliberately,
+  finely-graded ladder (length stepped 3→4→5→6, other axes held steady while length
+  grows). The pilot fine-tunes; it does not design.
+- **No adaptivity.** A performance-driven add-on (dynamically creating/suspending
+  cards, as commercial audiation trainers do) would be more powerful but is out of
+  scope. A fixed, well-graded ladder builds the *basic* skills time-effectively;
+  the learner then graduates to real music. Implication: the curriculum has a clear
+  **endpoint** ("you can take dictation of a simple diatonic tune at tempo — go
+  transcribe real music"), it does not sprawl.
+
+Remaining (I choose sensible defaults; pilot tunes):
+
+- Exact per-stage **threshold values** and **length steps**.
+- **Advanced-rhythm editor work** (dotted / tie / triplet input) + the
+  **sounded-rhythm equivalence grader** — both deferred to the advanced-rhythm
+  phase; Phases 1–3 don't need them.
