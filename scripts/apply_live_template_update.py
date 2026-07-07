@@ -60,11 +60,22 @@ def ac(action: str, **params: object) -> object:
     return payload["result"]
 
 
+def _find_count(query: str) -> int:
+    cards = ac("findCards", query=query)
+    assert isinstance(cards, list)
+    return len(cards)
+
+
 def main(argv: list[str]) -> int:
-    ap = argparse.ArgumentParser(description="Push template(s) to the live collection.")
+    ap = argparse.ArgumentParser(description="Update the live collection's templates.")
     ap.add_argument("--model", required=True, help="Exact live note-type name.")
-    ap.add_argument("--apply", action="store_true", help="Actually push (else dry run).")
+    ap.add_argument("--apply", action="store_true", help="Actually change (else dry run).")
     ap.add_argument("--check", action="store_true", help="Dry run (default).")
+    ap.add_argument(
+        "--remove-template", metavar="NAME",
+        help="Remove this template from the model (deletes its cards) instead of "
+             "pushing the multi-bar Transcribe template. Sing-only migration.",
+    )
     args = ap.parse_args(argv)
 
     names = ac("modelNames")
@@ -75,14 +86,42 @@ def main(argv: list[str]) -> int:
 
     current = ac("modelTemplates", modelName=args.model)
     assert isinstance(current, dict)
-    if "Transcribe" not in current:
-        print(f"ERROR: model {args.model!r} has no 'Transcribe' template.")
-        return 1
 
     stamp = datetime.now().strftime("%Y%m%dT%H%M%S")
     SNAP_DIR.mkdir(parents=True, exist_ok=True)
     snap = SNAP_DIR / f"{args.model.replace(' ', '_')}-{stamp}-before.json"
     snap.write_text(json.dumps(current, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    # --- Remove-template mode: drop a card type from the live model ------------
+    if args.remove_template:
+        tname = args.remove_template
+        if tname not in current:
+            print(f"ERROR: model {args.model!r} has no {tname!r} template.")
+            return 1
+        if len(current) <= 1:
+            print("ERROR: refusing to remove the only template (would orphan notes).")
+            return 1
+        affected = _find_count(f'"note:{args.model}" card:"{tname}"')
+        print(f"model: {args.model}")
+        print(f"snapshot: {snap}")
+        print(f"  templates now: {list(current)}")
+        print(f"  removing {tname!r} → deletes {affected} card(s); "
+              f"remaining: {[t for t in current if t != tname]}")
+        if not args.apply:
+            print("\nDRY RUN — no changes made. Re-run with --apply to remove.")
+            return 0
+        ac("modelTemplateRemove", modelName=args.model, templateName=tname)
+        after = ac("modelTemplates", modelName=args.model)
+        assert isinstance(after, dict)
+        gone = tname not in after
+        left = _find_count(f'"note:{args.model}" card:"{tname}"')
+        print(f"\nAPPLIED. {tname!r} template removed: {gone}; "
+              f"{tname} cards remaining: {left}; templates now: {list(after)}")
+        return 0 if (gone and left == 0) else 1
+
+    if "Transcribe" not in current:
+        print(f"ERROR: model {args.model!r} has no 'Transcribe' template.")
+        return 1
 
     before_front = current["Transcribe"]["Front"]
     has_before = BEFORE_MARKER in before_front

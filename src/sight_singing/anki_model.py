@@ -699,6 +699,16 @@ DICTATION_BACK_TEMPLATE = _fill(DICTATION_BACK_TEMPLATE)
 
 
 def make_model() -> genanki.Model:
+    """The shipping sight-singing model — Sing (production) ONLY.
+
+    Dictation is its own curriculum with its own pool and note type
+    (`make_dictation_model`), so the sight-singing note type deliberately does NOT
+    emit a Transcribe card: transcribing the very tunes you sight-sing degrades
+    dictation into recall rather than hearing (see DICTATION_CURRICULUM.md). The
+    Transcribe front/back templates still exist as the base for the Dictate card;
+    they are simply not a template of this model. (Historically this model shipped
+    a second "Transcribe" card per melody; that is removed by design.)
+    """
     return genanki.Model(
         model_id=MODEL_ID,
         name=MODEL_NAME,
@@ -708,11 +718,6 @@ def make_model() -> genanki.Model:
                 "name": "Sing",
                 "qfmt": FRONT_TEMPLATE,
                 "afmt": BACK_TEMPLATE,
-            },
-            {
-                "name": "Transcribe",
-                "qfmt": TRANSCRIBE_FRONT_TEMPLATE,
-                "afmt": TRANSCRIBE_BACK_TEMPLATE,
             },
         ],
         css=model_css(),

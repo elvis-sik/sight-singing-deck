@@ -43,22 +43,32 @@ Two consequences:
 
 ## Structural approach
 
-- **One note type** (the existing Sing + Transcribe templates). No new model.
-- **Conditional card generation** (not suspension): each note carries a role
-  marker (e.g. `SingEnabled` / `DictateEnabled` fields). The Sing template renders
-  only when sing is enabled; the Transcribe template only when dictation is
-  enabled. A melody used in one curriculum generates exactly one card — Anki never
-  creates the other. (Literal suspension is available as a live-collection
-  AnkiConnect step if reversibility is ever wanted; conditional generation is the
-  default for the built/shipped deck. See [[ankiconnect-live-deck-update]].)
-- **Two deck trees.** The Sing cards live under the existing `Sight Singing::…`
-  study-path tracks; the Transcribe cards live under a parallel `Dictation::…`
-  tree with its **own** numbered tracks. Independent scheduling and daily volume.
-- **Mostly-disjoint melody pools.** Dictation draws its own generated melodies
-  (same engine, different tunes) so it stays genuine ear-work. **Deliberate
-  overlap is allowed** — a melody you want both ways generates both cards, which
-  are siblings (spoiler-protected by burying); those few notes file into one tree
-  (or get a post-build card move). Expect overlap to be small.
+**As built (2026-07-07)** — the goal below (a melody generates exactly one card;
+dictation is separate) is realized with **two note types**, not one conditional
+model:
+
+- **Sight-singing model is Sing-only.** `make_model()` ships a single `Sing`
+  template. It deliberately does *not* emit a Transcribe card: transcribing the
+  very tunes you sight-sing is the "recall not hearing" trap above. (Historically
+  the model shipped a second Transcribe card per melody; that was removed by
+  design — build-side in `make_model`, and in the live collection by dropping the
+  `Transcribe` template via `scripts/apply_live_template_update.py
+  --remove-template Transcribe`.)
+- **Dictation has its own note type.** `make_dictation_model()` is a single
+  `Dictate` card (the transcription editor + the listen-count mechanic). One
+  melody → one card, no Sing sibling — the "conditional card generation" goal
+  reached with a separate model rather than role-marker fields on a shared one.
+- **Two deck trees.** Sing cards under `Sight Singing::…`; Dictate cards under a
+  parallel `Dictation::…` tree with its own numbered stages. Independent
+  scheduling and daily volume.
+- **Disjoint melody pools.** Dictation draws its own generated melodies (same
+  engine, different ladder) so it stays genuine ear-work; there is no forced
+  overlap with the sung tunes.
+
+The original plan was one note type with role-marker conditional generation
+(`SingEnabled` / `DictateEnabled`); the separate-note-type route was chosen
+because it needs no shared-model surgery and keeps the live Sing/Transcribe deck
+(already in the collection) low-risk. See [[ankiconnect-live-deck-update]].
 
 All of this reuses the existing `Stage` constraint-spec engine
 (`curriculum/stages.py`): `pool` / `start_pool` / `end_pool`, `max_step` /

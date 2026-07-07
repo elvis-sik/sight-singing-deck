@@ -1,8 +1,10 @@
-"""Tiny apkg exercising all THREE note types (Sing/Transcribe, Error, Rhythm).
+"""Tiny apkg exercising all FOUR note types (Sing, Dictate, Error, Rhythm).
 
 Purpose-built so a disposable-Anki deck smoke — which only renders the first N
-cards — actually covers the Error and Rhythm templates (in the full curriculum
-they sit after ~1500 melodic cards, out of the render window). Not shipped.
+cards — actually covers every template (in the full curriculum the Error/Rhythm
+templates sit after ~1500 cards, out of the render window). The Sing model is now
+production-only; the transcription editor lives on the Dictate note type, so the
+smoke covers that one to keep the editor template in the render window. Not shipped.
 """
 
 from __future__ import annotations
@@ -18,8 +20,10 @@ import genanki  # noqa: E402
 
 from build_deck import write_package  # noqa: E402
 from sight_singing.anki_model import (  # noqa: E402
+    DICTATION_FIELD_NAMES,
     ERROR_FIELD_NAMES,
     FIELD_NAMES,
+    make_dictation_model,
     make_error_model,
     make_model,
     make_rhythm_model,
@@ -43,18 +47,29 @@ ASSETS = _ROOT / "assets"
 
 def main() -> int:
     sing_lib = build_library(MAJOR_STAGES[:1])[:2]
+    # A multi-bar (length-6) dictation melody so the smoke exercises the editor
+    # at more than one bar. DD5 is the "Long Stepwise" stage.
+    dict_lib = build_library([STAGES_BY_ID["DD5"]])[:2]
     err_lib = build_error_library([STAGES_BY_ID["M5"]], per_stage=2)
     rhy_lib = build_rhythm_library("treble")[:2]
 
-    audio = sing_lib + error_audio_entries(err_lib) + rhy_lib
+    audio = sing_lib + dict_lib + error_audio_entries(err_lib) + rhy_lib
     build_library_audio(ASSETS, audio)
 
-    sing_model, err_model, rhy_model = make_model(), make_error_model(), make_rhythm_model()
+    sing_model = make_model()
+    dict_model = make_dictation_model()
+    err_model, rhy_model = make_error_model(), make_rhythm_model()
     deck = genanki.Deck(2_948_817_099, "Note-Type Smoke")
 
     for mel in sing_lib:
         f = melody_to_card_fields(mel)
         deck.add_note(genanki.Note(model=sing_model, fields=[f[n] for n in FIELD_NAMES]))
+    for mel in dict_lib:
+        f = melody_to_card_fields(mel)
+        f["ListenTargets"] = '{"good":4,"hard":6}'
+        deck.add_note(
+            genanki.Note(model=dict_model, fields=[f[n] for n in DICTATION_FIELD_NAMES])
+        )
     for rec in err_lib:
         written, variants = rec["written"], rec["variants"]
         assert isinstance(written, dict)
@@ -76,7 +91,7 @@ def main() -> int:
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     write_package(pkg, OUT)
-    print(f"Wrote {OUT} ({len(deck.notes)} notes across 3 note types)")
+    print(f"Wrote {OUT} ({len(deck.notes)} notes across 4 note types)")
     return 0
 
 
