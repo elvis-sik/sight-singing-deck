@@ -6,6 +6,11 @@
 
   var PITCHES = ["C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5"];
   var BAR_UNITS = 8; // eighth-note units in one 4/4 bar
+  // The editor's working length in eighth-units. It equals the target melody's
+  // total length (beat-aligned), so a 4-quarter melody keeps the historical
+  // single-bar behaviour (capacity === BAR_UNITS) while a 5-/6-note phrase lays
+  // out as one longer staff. Set from the target in initFront/renderSummary.
+  var capacity = BAR_UNITS;
   var DURATION_UNITS = { "8": 1, q: 2, h: 4, w: 8 };
   var DURATION_ORDER = ["w", "h", "q", "8"];
   var DURATION_LABELS = { "8": "Eighth", q: "Quarter", h: "Half", w: "Whole" };
@@ -60,11 +65,12 @@
   }
 
   function occupiedUnits(events) {
-    var occupied = [false, false, false, false, false, false, false, false];
+    var occupied = [];
+    for (var u = 0; u < capacity; u++) occupied.push(false);
     for (var i = 0; i < events.length; i++) {
       var end = eventEndUnit(events[i]);
       for (var unit = events[i].startUnit; unit < end; unit++) {
-        if (unit >= 0 && unit < BAR_UNITS) occupied[unit] = true;
+        if (unit >= 0 && unit < capacity) occupied[unit] = true;
       }
     }
     return occupied;
@@ -73,7 +79,7 @@
   function durationFitsAt(startUnit, duration, occupied) {
     var units = durationUnits(duration);
     if (!units) return false;
-    if (startUnit < 0 || startUnit + units > BAR_UNITS) return false;
+    if (startUnit < 0 || startUnit + units > capacity) return false;
     if (startUnit % units !== 0) return false;
     for (var i = startUnit; i < startUnit + units; i++) {
       if (occupied[i]) return false;
@@ -166,7 +172,7 @@
     var occupied = occupiedUnits(state.events);
     var cursor = 0;
     var out = [];
-    while (cursor < BAR_UNITS) {
+    while (cursor < capacity) {
       if (occupied[cursor]) {
         cursor += 1;
         continue;
@@ -189,7 +195,7 @@
     var occupied = occupiedUnits(state.events);
     var step = durationUnits(state.duration);
     var out = [];
-    for (var start = 0; start + step <= BAR_UNITS; start += step) {
+    for (var start = 0; start + step <= capacity; start += step) {
       if (durationFitsAt(start, state.duration, occupied)) out.push(start);
     }
     return out;
@@ -218,7 +224,24 @@
       });
       cursor += units;
     }
-    return cursor === BAR_UNITS ? out : [];
+    // Any well-formed melody is accepted (was: exactly one 4/4 bar). Longer
+    // phrases lay out across more beats; `capacity` (set below) sizes the grid.
+    return out;
+  }
+
+  // The editor grid spans the target melody's full length, beat-aligned. A
+  // 4-quarter melody keeps capacity === BAR_UNITS (unchanged single-bar layout);
+  // a 5-/6-note phrase gets a proportionally longer staff. Falls back to one bar
+  // for an empty/absent target.
+  function capacityForData(data) {
+    var events = targetEventsFromData(data);
+    var total = 0;
+    for (var i = 0; i < events.length; i++) {
+      total += durationUnits(events[i].duration);
+    }
+    if (total <= 0) return BAR_UNITS;
+    if (total % 2 === 1) total += 1; // keep a whole number of beats
+    return total;
   }
 
   function supportedData(data) {
@@ -427,7 +450,8 @@
     var beatbar = document.createElement("div");
     beatbar.className = "ss-beatbar";
     beatbar.id = "transcribe-beatbar";
-    for (var b = 0; b < 4; b++) {
+    var nbeats = Math.max(1, Math.ceil(capacity / 2));
+    for (var b = 0; b < nbeats; b++) {
       var beat = document.createElement("div");
       beat.className = "ss-beat";
       var fill = document.createElement("div");
@@ -496,17 +520,22 @@
     var el = document.getElementById("transcribe-status");
     var used = usedUnits();
 
+    var nbeats = Math.max(1, Math.ceil(capacity / 2));
     if (el) {
       if (!state.events.length) {
         el.innerHTML = "Listen, then tap the staff to enter what you hear.";
-      } else if (used >= BAR_UNITS) {
+      } else if (used >= capacity) {
         el.innerHTML =
-          "<strong>Bar complete.</strong> Check it against the melody, then show the answer.";
+          "<strong>All " +
+          nbeats +
+          " beats filled.</strong> Check it against the melody, then show the answer.";
       } else {
         el.innerHTML =
           "<strong>" +
           beatsLabel(used) +
-          " of 4 beats</strong> filled · " +
+          " of " +
+          nbeats +
+          " beats</strong> filled · " +
           DURATION_LABELS[state.duration].toLowerCase() +
           (state.mode === "rest" ? " rest" : "") +
           " selected";
@@ -516,10 +545,10 @@
     var beatbar = document.getElementById("transcribe-beatbar");
     if (beatbar) {
       beatbar.className =
-        "ss-beatbar" + (used >= BAR_UNITS ? " ss-beatbar-full" : "");
+        "ss-beatbar" + (used >= capacity ? " ss-beatbar-full" : "");
       var occupied = occupiedUnits(state.events);
       var fills = beatbar.getElementsByClassName("ss-beat-fill");
-      for (var b = 0; b < fills.length && b < 4; b++) {
+      for (var b = 0; b < fills.length && b < nbeats; b++) {
         var count = (occupied[b * 2] ? 1 : 0) + (occupied[b * 2 + 1] ? 1 : 0);
         fills[b].style.width = count * 50 + "%";
       }
@@ -608,7 +637,12 @@
     }
 
     var measured = els.editor.clientWidth || 520;
-    var width = Math.max(260, Math.min(560, measured));
+    // Give longer phrases more room: ~46px per beat plus clef/time margins,
+    // but never below the historical single-bar width and capped so a wide
+    // card doesn't stretch a short melody. A 4-beat melody stays ≈260–560px.
+    var perBeat = Math.max(1, Math.ceil(capacity / 2)) * 46;
+    var wanted = Math.max(measured, 110 + perBeat);
+    var width = Math.max(260, Math.min(720, wanted));
     var height = 144;
     var ink = themeVar("--ss-ink", "#221f1c");
     var faint = themeVar("--ss-ink-faint", "#aca69d");
@@ -743,7 +777,7 @@
         });
       }
     }
-    anchors.push({ unit: BAR_UNITS, x: endX });
+    anchors.push({ unit: capacity, x: endX });
 
     var yBottom = stave.getYForLine(4); // E4 line
     var halfStep = (stave.getYForLine(4) - stave.getYForLine(3)) / 2;
@@ -756,7 +790,7 @@
      */
     var gridLeft = stave.getNoteStartX();
     var gridRight = stave.getX() + stave.getWidth() - 10;
-    var unitPx = (gridRight - gridLeft) / BAR_UNITS;
+    var unitPx = (gridRight - gridLeft) / capacity;
 
     geo = {
       width: width,
@@ -808,7 +842,7 @@
         return a.unit + ((x - a.x) / (b.x - a.x)) * (b.unit - a.unit);
       }
     }
-    return BAR_UNITS;
+    return capacity;
   }
 
   /* Uniform grid: pixel x for a unit boundary, used by the ghost box. */
@@ -818,7 +852,7 @@
 
   /* Which duration-sized tile the pointer sits in, on the uniform grid. */
   function tileStartForX(x, units) {
-    var maxTile = Math.floor(BAR_UNITS / units) - 1;
+    var maxTile = Math.floor(capacity / units) - 1;
     var tile = Math.floor((x - geo.gridLeft) / (geo.unitPx * units));
     if (tile < 0) tile = 0;
     if (tile > maxTile) tile = maxTile;
@@ -1262,6 +1296,8 @@
     var legendEl = document.getElementById("transcribe-legend");
     if (!resultEl || !targetEl) return;
 
+    capacity = capacityForData(data);
+
     if (!supportedData(data)) {
       resultEl.className = "ss-verdict ss-verdict-none";
       resultEl.innerHTML =
@@ -1343,6 +1379,7 @@
     if (!editor) return;
 
     var data = parseData();
+    capacity = capacityForData(data);
     clearSavedEvents();
     state.events = [];
     state.history = [];
@@ -1458,8 +1495,12 @@
   };
 
   window.SightSingingTranscriptionReview = function () {
+    var data = parseData();
+    // Size the grid before loading the saved answer: a multi-bar answer has
+    // events past unit 8, which the single-bar default would filter out.
+    capacity = capacityForData(data);
     state.events = loadSavedEvents();
-    renderSummary(parseData());
+    renderSummary(data);
   };
 
   /* Test/debug hooks: stable coordinates for Playwright and agents. */
