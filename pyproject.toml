@@ -31,6 +31,9 @@ seed_apkgs = [
   "out/sight-singing-mvp.apkg",
   "out/transcription-debug-variants.apkg",
   "out/transcription-integration-variants.apkg",
+  # The full shipping curriculum: verifies the real deck (all tracks, numbered
+  # subdecks, umbrella descriptions) imports cleanly into disposable Anki.
+  "out/sight-singing-curriculum.apkg",
 ]
 anki_version = "25.09"
 docker_image = "sight-singing-deck-anki-workbench"

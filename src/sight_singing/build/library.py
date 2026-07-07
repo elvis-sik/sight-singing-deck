@@ -34,10 +34,24 @@ from sight_singing.theory.scales import (
     tonic_octave_for,
 )
 
-# One quarter note per index; a length-4 melody is exactly one 4/4 bar. Rhythmic
-# variety and longer phrases arrive with the rhythm ladder (a separate pass);
-# the renderer draws a single stave, so we keep melodies to one bar for now.
+# One quarter note per index; a length-4 melody is exactly one 4/4 bar. Longer
+# phrases (length 5-6) span multiple bars — the renderer splits them at the
+# barline and pads the final bar with rests. Rhythmic variety arrives with the
+# rhythm ladder (a separate pass).
 _DEFAULT_DURATION = "q"
+
+
+def _durations_for(stage: Stage, n: int) -> list[str]:
+    """Per-note note values for a stage's melodies.
+
+    Isolated interval drills are two *sustained* pitches (hear one, sing the
+    other): notate and sound them as half notes so the two notes fill a complete
+    4/4 bar instead of leaving beats 3-4 empty. Every other stage keeps one
+    quarter per index.
+    """
+    if stage.phase == "intervals":
+        return ["h"] * n
+    return [_DEFAULT_DURATION] * n
 
 
 def _melody_id(
@@ -82,7 +96,7 @@ def realize_stage_melody(
     tonic_note = realize_note(k, tonic_octave, 0)[0]
 
     notes = [str(item["note"]) for item in realized]
-    durations = [_DEFAULT_DURATION] * len(notes)
+    durations = _durations_for(stage, len(notes))
     degrees = [int(str(item["degree"])) for item in realized]
     solfege = [str(item["solfege"]) for item in realized]
 

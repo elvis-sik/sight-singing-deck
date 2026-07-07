@@ -74,18 +74,30 @@ from constraint specs (no hand-authored melodies). The pipeline lives under
 - `build/library.py` — realize stages into card-ready melody records.
 
 The deck ships several tracks as subdecks, each split into per-stage subdecks in
-curriculum order:
+curriculum order. Top-level tracks carry a **numeric prefix** (so Anki's
+alphabetical deck sort matches the study order) and a **role word**, and each
+umbrella deck carries an in-app **how-to-use description** (Anki shows it on the
+deck overview). The tiers express that this is not a strict 1→7 march:
 
-- **Major** (C) and **Minor** (A, the relative minor) — the melodic ladder.
-  Every melody yields a **Sing** card and a **Transcribe** (dictation) card.
-- **Intervals** — isolated two-note interval drills (IV2–IV8).
-- **Errors** — error-detection (see below).
-- **Keys · G major / F major** and **Clef · Bass (C major / A minor)** — bounded
-  movable-do transfer tracks (a curated stage spread in other keys and bass clef,
-  capped per stage). The renderer draws the right **key signature** and only
-  marks accidentals that deviate from it; cadences are transposed per key/mode
-  (a real i-iv-**V**-i in minor, with the raised leading tone).
-- **Rhythm / Rhythm · Bass** — rhythm-first cards (`generate/rhythm.py`,
+- **1 · Core: Major** (C) and **2 · Core: Minor** (A, the relative minor) — the
+  melodic spine; work these top to bottom. Every melody yields a **Sing** card
+  and a **Transcribe** (dictation) card.
+- **3 · Drill: Rhythm** (Treble / Bass) and **4 · Drill: Intervals** — run
+  alongside the Core spine from early on. Intervals are isolated two-note drills
+  (IV2–IV8), notated as two **half notes** so each fills a complete bar.
+- **5 · Skill: Error Detection** — error-detection (see below).
+- **6 · Transfer: Other Keys** (G / F major) and **7 · Transfer: Bass Clef**
+  (C major / A minor) — bounded movable-do transfer tracks (a curated stage
+  spread in other keys and bass clef, capped per stage), for once C major is
+  fluent. The renderer draws the right **key signature** and only marks
+  accidentals that deviate from it; cadences are transposed per key/mode (a real
+  i-iv-**V**-i in minor, with the raised leading tone).
+
+Phrases longer than one bar (e.g. the 5–6 note stages) are split into real
+barred **measures**, and any incomplete final bar is padded with **rests**, so
+the notation always respects the time signature.
+
+The rhythm track (**3 · Drill: Rhythm**) is rhythm-first cards (`generate/rhythm.py`,
   `make_rhythm_model`): one bar on a single repeated pitch so the interest is
   pure timing. Stages **R1–R9**: quarters/halves/wholes, rests, beamed eighth
   pairs, mixed fillings, offbeat eighth rests, dotted quarters, **ties/
@@ -94,7 +106,7 @@ curriculum order:
   separate notation view (`render_events`, with tie/tuplet flags) and audio view
   (ties merged to one sustained note, triplet eighths as `8t` = ⅓ beat).
 
-The **Errors** track is a separate note type (`make_error_model`): you see the
+The **Error Detection** track is a separate note type (`make_error_model`): you see the
 written score and hear a performance with exactly one in-key wrong note, and tap
 the note that sounds wrong. It is **generated on the fly per view** — each note
 ships *every* single-note wrong-performance variant (`generate/errors.py`
@@ -116,7 +128,7 @@ drone clips are content-hashed so Anki's importer always picks up changes.
 **Phase checkpoints / custom study:** every note is tagged `phase::<phase>`,
 `stage::<id>`, `track::<track>`, and `key::<key>_<mode>`, so mixed-review
 checkpoints are just saved searches, e.g.
-`deck:"Sight Singing::Major" tag:phase::steps` or `tag:stage::M5 OR tag:stage::M6`.
+`deck:"Sight Singing::1 · Core: Major" tag:phase::steps` or `tag:stage::M5 OR tag:stage::M6`.
 
 ## Transcription Debug Harness
 

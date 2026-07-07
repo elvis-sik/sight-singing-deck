@@ -56,7 +56,9 @@ from sight_singing.curriculum.stages import (
 
 @dataclass(frozen=True)
 class Track:
-    key: str  # subdeck label + tag, e.g. "Major"
+    key: str  # subdeck path under the base, e.g. "1 · Core: Major" (may nest
+    #   under an umbrella with "::", e.g. "6 · Transfer: Other Keys::G major")
+    tag: str  # stable tag slug, e.g. "major" (independent of the display key)
     stages: list[Stage]
     key_name: str  # tonic letter, e.g. "C" / "A"
     mode: str  # default realization mode
@@ -71,22 +73,56 @@ class Track:
 _TRANSFER_STAGE_IDS = ["M0_3", "M2", "M5", "M7", "M9"]
 _TRANSFER_STAGES = [STAGES_BY_ID[i] for i in _TRANSFER_STAGE_IDS]
 
+# Track display keys carry a numeric prefix so Anki's alphabetical deck sort
+# matches the intended study order, and a role word (Core / Drill / Skill /
+# Transfer) so the learner can see at a glance that it is not a strict 1→7 march:
+# the two Core tracks are the spine, the Drills run alongside from early on, and
+# the Transfer tracks come once C major is fluent. Per-track how-to-use text is
+# attached to the umbrella decks below (TRACK_GUIDE).
 TRACKS = [
-    Track("Major", MAJOR_STAGES, "C", "major", DECK_ID + 100),
-    Track("Minor", MINOR_STAGES, "A", "natural_minor", DECK_ID + 200),
-    Track("Intervals", INTERVAL_STAGES, "C", "major", DECK_ID + 300),
-    Track("Keys · G major", _TRANSFER_STAGES, "G", "major", DECK_ID + 500,
-          per_stage=6),
-    Track("Keys · F major", _TRANSFER_STAGES, "F", "major", DECK_ID + 550,
-          per_stage=6),
-    Track("Clef · Bass (C major)", _TRANSFER_STAGES, "C", "major", DECK_ID + 600,
-          clef="bass", per_stage=6),
-    Track("Clef · Bass (A minor)", _TRANSFER_STAGES, "A", "natural_minor",
-          DECK_ID + 650, clef="bass", per_stage=6),
+    Track("1 · Core: Major", "major", MAJOR_STAGES, "C", "major", DECK_ID + 100),
+    Track("2 · Core: Minor", "minor", MINOR_STAGES, "A", "natural_minor", DECK_ID + 200),
+    Track("4 · Drill: Intervals", "intervals", INTERVAL_STAGES, "C", "major", DECK_ID + 300),
+    Track("6 · Transfer: Other Keys::G major", "keys_g", _TRANSFER_STAGES, "G", "major",
+          DECK_ID + 500, per_stage=6),
+    Track("6 · Transfer: Other Keys::F major", "keys_f", _TRANSFER_STAGES, "F", "major",
+          DECK_ID + 550, per_stage=6),
+    Track("7 · Transfer: Bass Clef::C major", "clef_bass_c", _TRANSFER_STAGES, "C", "major",
+          DECK_ID + 600, clef="bass", per_stage=6),
+    Track("7 · Transfer: Bass Clef::A minor", "clef_bass_a", _TRANSFER_STAGES, "A",
+          "natural_minor", DECK_ID + 650, clef="bass", per_stage=6),
+]
+
+# Top-level umbrella decks carry the how-to-use guidance Anki shows on the deck
+# overview screen. Empty (note-less) decks whose only job is to hold a stable id
+# and a description; the numbered stage subdecks nest beneath them by name.
+# (segment under the base, deck-id offset, description)
+_ROOT_DESC = (
+    "A function-first sight-singing course. The two <b>Core</b> tracks are the "
+    "spine — work Major, then Minor, top to bottom. The <b>Drills</b> (Rhythm, "
+    "Intervals) run alongside from the start. The <b>Transfer</b> tracks (other "
+    "keys, bass clef) come once C major feels fluent."
+)
+TRACK_GUIDE: list[tuple[str, int, str]] = [
+    ("1 · Core: Major", 10,
+     "<b>Start here.</b> The core path — work top to bottom; each stage adds one idea."),
+    ("2 · Core: Minor", 11,
+     "The minor mode. Begin once you're comfortable through Major's step stages (M1–M4)."),
+    ("3 · Drill: Rhythm", 12,
+     "Rhythm reading — an independent skill. Run this alongside the Core track from day one."),
+    ("4 · Drill: Intervals", 13,
+     "Isolated interval drills for ear-training. Dip in anytime to reinforce a specific leap."),
+    ("5 · Skill: Error Detection", 14,
+     "Listening skill: spot the wrong note. Start once you can read a short phrase confidently."),
+    ("6 · Transfer: Other Keys", 15,
+     "The Core material transposed to G and F major — movable-do practice. After C major is fluent."),
+    ("7 · Transfer: Bass Clef", 16,
+     "Reading in bass clef (C major and A minor). When you're ready for the lower staff."),
 ]
 
 # Error-detection track: a curated spread of stages, altering one note per base
 # melody. (Its own note type, so these never duplicate the melody cards.)
+_ERROR_TRACK_KEY = "5 · Skill: Error Detection"
 _ERROR_STAGE_IDS = ["M2", "M4", "M5", "M7", "M8", "N2", "N4", "N5"]
 ERROR_DECK_ID_BASE = DECK_ID + 400
 ERROR_PER_STAGE = 8
@@ -111,8 +147,23 @@ def _track_library(track: Track) -> list[dict[str, object]]:
 
 
 def _track_tag(track: Track) -> str:
-    slug = track.key.lower().split("·")[0].strip().replace(" ", "_")
-    return f"track::{slug}"
+    return f"track::{track.tag}"
+
+
+def _guide_decks(base_deck_name: str) -> list[genanki.Deck]:
+    """Empty umbrella decks carrying the per-track how-to-use descriptions."""
+    decks = [
+        genanki.Deck(deck_id=DECK_ID + 1, name=base_deck_name, description=_ROOT_DESC)
+    ]
+    for segment, offset, desc in TRACK_GUIDE:
+        decks.append(
+            genanki.Deck(
+                deck_id=DECK_ID + offset,
+                name=f"{base_deck_name}::{segment}",
+                description=desc,
+            )
+        )
+    return decks
 
 
 def build(out_path: Path, base_deck_name: str, assets_dir: Path, limit: int | None) -> int:
@@ -187,7 +238,7 @@ def build(out_path: Path, base_deck_name: str, assets_dir: Path, limit: int | No
             if sid not in err_decks:
                 idx = err_order.get(sid, 99)
                 name = _deck_name(
-                    base_deck_name, "Errors", idx, sid, str(rec["title"])
+                    base_deck_name, _ERROR_TRACK_KEY, idx, sid, str(rec["title"])
                 )
                 err_decks[sid] = genanki.Deck(
                     deck_id=ERROR_DECK_ID_BASE + idx, name=name
@@ -218,7 +269,9 @@ def build(out_path: Path, base_deck_name: str, assets_dir: Path, limit: int | No
         for rec in rhythm_lib:
             sid = str(rec["stage_id"])
             clef = str(rec["clef"])
-            group = "Rhythm · Bass" if clef == "bass" else "Rhythm"
+            group = (
+                "3 · Drill: Rhythm::Bass" if clef == "bass" else "3 · Drill: Rhythm::Treble"
+            )
             key = f"{group}/{sid}"
             if key not in rhy_decks:
                 idx = rhy_order.get(sid, 99)
@@ -239,7 +292,9 @@ def build(out_path: Path, base_deck_name: str, assets_dir: Path, limit: int | No
             rhy_decks[key].add_note(note)
         ordered_decks.extend(rhy_decks[k] for k in deck_seq)
 
-    pkg = genanki.Package(ordered_decks)
+    # Prepend the umbrella guide decks so the how-to-use descriptions ship with
+    # the top-level tracks.
+    pkg = genanki.Package(_guide_decks(base_deck_name) + ordered_decks)
 
     expected = library_audio_basenames(audio_library)
     media_files: list[str] = []

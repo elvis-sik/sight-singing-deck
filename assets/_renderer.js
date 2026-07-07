@@ -37,6 +37,32 @@
     return d.dotted ? base * 1.5 : base;
   }
 
+  /* Duration units in one measure of the given time signature (a 4/4 bar is 8
+     units: four quarters at 2 units each). Returns 0 for an unparseable sig,
+     which the caller reads as "don't split into measures". */
+  function measureUnits(timeSig) {
+    var parts = String(timeSig || "4/4").split("/");
+    var num = parseInt(parts[0], 10);
+    var den = parseInt(parts[1], 10);
+    if (!num || !den) return 0;
+    return num * (8 / den);
+  }
+
+  /* Greedy decomposition of `units` into rest durations (largest first), used to
+     pad an incomplete final measure so every bar is rhythmically complete. */
+  function fillRestDurations(units) {
+    var table = [["w", 8], ["hd", 6], ["h", 4], ["qd", 3], ["q", 2], ["8", 1]];
+    var out = [];
+    var left = units;
+    for (var i = 0; i < table.length && left > 0; i++) {
+      while (left >= table[i][1]) {
+        out.push(table[i][0]);
+        left -= table[i][1];
+      }
+    }
+    return out;
+  }
+
   function normalizeEvent(event) {
     if (!event || typeof event !== "object") return null;
     var kind = event.kind === "rest" ? "rest" : "note";
@@ -436,8 +462,34 @@
     var tup = tupletGroups(VF, data.events, notes);
     var ties = tieGroups(VF, data.events, notes);
 
+    // Split into complete measures: insert a barline at each measure boundary
+    // and pad the final (partial) bar with rests, so a phrase longer than one
+    // bar reads as real barred measures and a short phrase never leaves empty
+    // beats. Boundaries fall between events for our data (quarter/half notes
+    // divide the bar evenly). `notes[i]` still carries per-event styling and is
+    // referenced by the beam/tuplet/tie groups, so those are unaffected.
+    var barUnits = measureUnits(data.timeSig);
+    var tickables = [];
+    var acc = 0;
+    for (var ti = 0; ti < data.events.length; ti++) {
+      if (barUnits && acc > 0 && acc % barUnits === 0) {
+        tickables.push(new VF.BarNote());
+      }
+      tickables.push(notes[ti]);
+      acc += durationUnits(data.events[ti].duration);
+    }
+    if (barUnits && acc % barUnits !== 0) {
+      var restDurs = fillRestDurations(barUnits - (acc % barUnits));
+      for (var ri = 0; ri < restDurs.length; ri++) {
+        tickables.push(
+          vexNoteForEvent(VF, data.clef || "treble",
+            { kind: "rest", duration: restDurs[ri] }, {})
+        );
+      }
+    }
+
     try {
-      VF.Formatter.FormatAndDraw(ctx, stave, notes);
+      VF.Formatter.FormatAndDraw(ctx, stave, tickables);
       for (var b = 0; b < beams.length; b++) {
         beams[b].setContext(ctx).draw();
       }
