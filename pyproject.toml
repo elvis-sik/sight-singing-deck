@@ -34,6 +34,9 @@ seed_apkgs = [
   # The full shipping curriculum: verifies the real deck (all tracks, numbered
   # subdecks, umbrella descriptions) imports cleanly into disposable Anki.
   "out/sight-singing-curriculum.apkg",
+  # The dictation deck: verifies the Dictation note type + multi-bar editor
+  # (incl. the 5-/6-note stages) imports and renders in disposable Anki.
+  "out/dictation-curriculum.apkg",
 ]
 anki_version = "25.09"
 docker_image = "sight-singing-deck-anki-workbench"
