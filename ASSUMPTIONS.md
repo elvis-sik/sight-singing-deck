@@ -47,8 +47,10 @@ it: minor melodies climb to A5, bass drops to B2 — and again quietly, C-major
 dictation itself uses `ti,` = **B3**, one step *below* the C4 floor, so DD7–DD9
 had un-enterable notes the day they shipped. Generalized to a melody-driven,
 clef-aware **staff-position** window (letters, with the key signature supplying
-accidentals). Still fossilized-but-known: the "no accidentals" belief — harmonic
-minor's G# and other keys' F#/Bb need editor accidental input (Phase C).
+accidentals). The last piece — the "no accidentals" belief — is **resolved in
+Phase C**: the editor now has an accidental palette (shown for harmonic minor) and
+draws the key signature, so harmonic minor's G♯ and G/F major's F♯/B♭ are
+enterable and graded by effective chromatic pitch.
 
 ### 3. VexFlow's `space_above_staff` (~40px) — "the staff sits at a fixed, comfortable place"
 `assets/_transcription.js`, `renderScore`. Not our constant — VexFlow's. It
@@ -119,6 +121,18 @@ for B (rhythm) and C (accidentals/keys). Grouped by when it cracks._
 > while here: **`renderMeta` mislabelled minor cards as "major"** (`data.mode ===
 > "minor"` never matched our `natural_minor`/`harmonic_minor`), and the rhythm
 > badge now comes from `gradeMode`.
+>
+> **Phase C (2026-07-08):** the whole accidentals/keys cluster below is **closed**.
+> The editor now (1) draws the **key signature** on its stave, (2) offers an
+> **accidental palette** (shown only for harmonic minor), and (3) grades by
+> **effective chromatic pitch** — `pitchChroma(pitch, explicitAcc, keyAcc)` folds
+> the key-signature default in, so a bare F on the F line matches an F♯ target in G
+> major, while the harmonic-minor `si` demands an explicit ♯ (a bare G is a miss).
+> `buildAnswerData` threads key/mode/keyAcc to the answer staff. The generator's
+> **tritone check now takes the realization mode** (`passes_hard_rules(mel, stage,
+> mode)`, threaded from `build_library`), so a minor interval drill would strip the
+> minor tritone, not the major one (locked by a test). Shipped: harmonic-minor
+> `ND9h` and the `6 · Other Keys` G/F transfer track.
 
 **Cleared (checked, provably fine):** deck-id collisions — every id computed, no
 overlap within the dictation tree or against sight-singing (91-id gap); model ids
@@ -150,26 +164,18 @@ a dead path. `tonic_octave_for` raises loudly on an unknown clef, not silently.
 - **`capacityForData` assumes a 2-unit (quarter) beat** — `_transcription.js:294`.
   Fine for x/4, wrong for compound meters (6/8's beat is a dotted quarter).
 
-### Bites at Phase C (accidentals / keys) — the main cluster
-- ★ **Grading compares exact pitch strings, but the editor only speaks diatonic
-  staff positions** — `_transcription.js:334` (`eventsMatch`). `"F4" === "F#4"` is
-  false, so a *perfect* transcription of any accidental-bearing melody (G/F keys'
-  F#/Bb, harmonic-minor's G#) grades all-red. **This IS the Phase C grading work,
-  now pinned to a line.** Fix: compare by staff position + key context, not the
-  accidental-bearing pitch string.
-- **Editor hardcodes 4/4 + C major** — `_transcription.js:734` (stave) and 320-322
-  (`buildAnswerData`). The answer staff shows 4/4 / no key sig even for a 3/4 or
-  G-major target — a visible mismatch and mis-barred answer. Thread `data`'s
-  timeSig/key/mode through.
-- **`_melody_id` collapses natural vs harmonic minor** — `build/library.py:70-76`.
-  The mode tag is `'min'` for *both* minor modes and the hash omits mode, so
-  building a harmonic stage that reuses a structural stage-id in the same key/clef
-  makes `build_library`'s `seen_ids` silently drop the second (different-sounding)
-  melody. Latent (harmonic stage-ids are unique + `ND9h` is deferred). Fix: fold
-  `mode` into the hash / spell it `nat`/`harm`.
-- **`forbid_tritone_leap` uses the major tritone position for mode-less stages** —
-  `generate/melody_gen.py:70` (`stage.mode or "major"`). The interval drills are
-  `mode=None`; a *minor* interval-dictation track would strip the wrong tritone.
+### Bites at Phase C (accidentals / keys) — the main cluster — ✅ all closed in Phase C
+- ✅ **Grading compares exact pitch strings, but the editor only speaks diatonic
+  staff positions** — `eventsMatch` now requires same staff position AND same
+  effective chromatic pitch (`pitchChroma`), so a bare F matches an F♯ target under
+  a G-major key sig while the harmonic-minor `si` needs an explicit ♯.
+- ✅ **Editor hardcodes 4/4 + C major** — the editor stave draws `curKeySig` and
+  `buildAnswerData` threads clef/timeSig/key/mode/keyAcc to the answer staff.
+- ✅ **`_melody_id` collapses natural vs harmonic minor** — already fixed in the
+  audit-fixes pass (`harm` tag); ND9h now ships and its ids are distinct from ND9.
+- ✅ **`forbid_tritone_leap` uses the major tritone position for mode-less stages**
+  — `passes_hard_rules(mel, stage, mode)` takes the realization mode, threaded from
+  `build_library`; a minor interval drill strips the minor tritone (test-locked).
 
 ### Dead / trivial
 - **`is_tendency_tone` flags the wrong degrees in minor** — `theory/scales.py:176`

@@ -351,6 +351,19 @@
 
 .ss-segmented .ss-btn + .ss-btn { border-left: 1px solid var(--ss-btn-edge); }
 
+/* Accidental palette (harmonic minor). Glyph-only, tighter than the tool row. */
+.ss-btn-acc {
+  min-width: 40px;
+  padding: 9px 12px;
+  font-size: 20px;
+  line-height: 1;
+}
+.ss-btn-acc span { font-weight: 700; }
+.ss-accbar-disabled .ss-btn-acc {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
 /* ---- status + beat progress ---------------------------------------------- */
 
 .ss-status-row {

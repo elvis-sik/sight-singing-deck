@@ -322,6 +322,87 @@ test("review page compares the saved answer with the target", async ({
   expect(counts.targetSvgs).toBe(1);
 });
 
+test("accidental palette appears only for harmonic minor and records the sharp", async ({
+  page,
+}) => {
+  // Plain C-major card: no accidental palette (the key signature supplies
+  // everything, so it would be dead weight).
+  await page.goto("/debug/transcription-harness.html");
+  await page.waitForSelector(".ss-editor-overlay");
+  await expect(page.locator("#transcribe-accbar")).toHaveCount(0);
+
+  // A harmonic-minor card: the palette is present (si is spelled outside the key
+  // signature). Select the sharp, place a note on the G line, and confirm the
+  // event carries acc:"#".
+  await page.goto("/debug/transcription-harness-harmonic.html");
+  await page.waitForSelector(".ss-editor-overlay");
+  await expect(page.locator("#transcribe-accbar")).toHaveCount(1);
+
+  await page.locator("#transcribe-acc-sharp").click();
+  await expect(page.locator("#transcribe-acc-sharp")).toHaveClass(
+    /ss-tool-active/
+  );
+  await tapStaff(page, 0, "G4");
+
+  const state = await debugState(page);
+  expect(state.events).toEqual([
+    { kind: "note", pitch: "G4", duration: "q", startUnit: 0, acc: "#" },
+  ]);
+});
+
+test("harmonic-minor grading needs the raised 7 (si = G#) spelled with a sharp", async ({
+  page,
+}) => {
+  // Target E5 C5 B4 G#4 A4. The harness seeds the correct answer with the si
+  // entered as G + sharp — must be perfect (accidental-aware chromatic match).
+  await page.goto("/debug/review-harness-harmonic.html");
+  await page.waitForSelector("#transcribe-target svg");
+  await expect(page.locator("#transcribe-result")).toContainText(
+    "Perfect — every pitch and rhythm matches"
+  );
+
+  // Now spell the si as a bare G (natural minor's te). Same staff line, wrong
+  // chromatic pitch → no longer perfect: the sharp is load-bearing.
+  await page.evaluate(() => {
+    localStorage.setItem(
+      "ss-transcribe:debug_review_harmonic",
+      JSON.stringify([
+        { kind: "note", pitch: "E5", duration: "q", startUnit: 0 },
+        { kind: "note", pitch: "C5", duration: "q", startUnit: 2 },
+        { kind: "note", pitch: "B4", duration: "q", startUnit: 4 },
+        { kind: "note", pitch: "G4", duration: "q", startUnit: 6 },
+        { kind: "note", pitch: "A4", duration: "q", startUnit: 8 },
+      ])
+    );
+    window.SightSingingTranscriptionReview();
+  });
+  await expect(page.locator("#transcribe-result")).toContainText(
+    "4 of 5 events match"
+  );
+  await expect(page.locator("#transcribe-result")).not.toContainText("Perfect");
+});
+
+test("transfer key: a bare F on the F line matches an F# target via the key signature", async ({
+  page,
+}) => {
+  // G major target C5 B4 D5 F#5 G5. The correct answer places a BARE F (no
+  // accidental typed) — the key signature's sharp makes it F#. Perfect.
+  await page.goto("/debug/review-harness-gmajor.html");
+  await page.waitForSelector("#transcribe-target svg");
+  await expect(page.locator("#transcribe-result")).toContainText(
+    "Perfect — every pitch and rhythm matches"
+  );
+
+  // ...and the answer staff must be spelled like the target — a bare F on the F
+  // line is F# via the key signature, NOT an F with a redundant natural glyph.
+  // Compare rendered glyph counts (state being right isn't enough here).
+  const glyphs = await page.evaluate(() => ({
+    user: document.querySelectorAll("#transcribe-user svg path").length,
+    target: document.querySelectorAll("#transcribe-target svg path").length,
+  }));
+  expect(glyphs.user).toBe(glyphs.target);
+});
+
 test("rhythm dictation grades by sounded rhythm (rest spelling + pitch agnostic)", async ({
   page,
 }) => {

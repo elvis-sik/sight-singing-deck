@@ -151,7 +151,10 @@ def build_library(
     library: list[dict[str, object]] = []
     seen_ids: set[str] = set()
     for stage in stages:
-        kept = generate_stage(stage)
+        # Pass the realization mode so a stage that doesn't declare its own mode
+        # (e.g. an interval drill) still gets the tritone stripped for the mode it
+        # is actually spelled in. stage.mode still wins inside passes_hard_rules.
+        kept = generate_stage(stage, mode)
         if per_stage is not None:
             kept = kept[:per_stage]
         for degrees_idx in kept:
@@ -186,7 +189,7 @@ def build_error_library(
     out: list[dict[str, object]] = []
     for stage in stages:
         made = 0
-        for degrees_idx in generate_stage(stage):
+        for degrees_idx in generate_stage(stage, mode):
             if made >= per_stage:
                 break
             cases = make_error_variants(tuple(degrees_idx), max_variants=max_variants)
