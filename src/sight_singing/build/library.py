@@ -72,7 +72,16 @@ def _melody_id(
     base = f"{stage_id.lower()}_{digest}"
     if (key_name, mode, clef) == ("C", "major", "treble"):
         return base
-    tag = f"{key_name}{'maj' if mode == 'major' else 'min'}{clef[0]}".lower()
+    # Distinguish natural vs harmonic minor — collapsing both to "min" (and the
+    # hash omitting mode) would give the same stage_id/key/clef the same id in both
+    # modes, and build_library's seen_ids would silently drop the second melody.
+    # "harm" is a new suffix, so existing major/natural ids are unchanged.
+    mode_tag = (
+        "maj" if mode == "major"
+        else "harm" if mode == "harmonic_minor"
+        else "min"
+    )
+    tag = f"{key_name}{mode_tag}{clef[0]}".lower()
     return f"{base}_{tag}"
 
 

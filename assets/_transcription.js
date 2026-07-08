@@ -11,6 +11,13 @@
   // historical treble C4–C5 window.
   var PITCHES = ["C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5"];
   var clef = "treble";
+  // Tonal/metric context of the current target, captured in applyPitchContext so
+  // the editor staff and the back-side answer staff match the target instead of a
+  // hardcoded C-major/4-4. (No-op for the all-natural x/4 cards shipped today.)
+  var curKey = "C";
+  var curMode = "major";
+  var curTimeSig = "4/4";
+  var curKeySig = "";
   var LETTERS = "CDEFGAB";
 
   // Diatonic ordinal: octave*7 + letter index, ignoring any accidental. Adjacent
@@ -96,7 +103,15 @@
   }
 
   function melodyId() {
-    return String(window.sightSingingMelodyId || "").trim() || "unknown";
+    var explicit = String(window.sightSingingMelodyId || "").trim();
+    if (explicit) return explicit;
+    // Fall back to a hash of the melody data so two id-less cards don't collide
+    // on the same "ss-transcribe:unknown" saved-answer key (djb2).
+    var el = document.getElementById("melody-data");
+    var raw = el ? el.textContent : "";
+    var h = 5381;
+    for (var i = 0; i < raw.length; i++) h = ((h << 5) + h + raw.charCodeAt(i)) | 0;
+    return "auto" + (h >>> 0).toString(36);
   }
 
   function storageKey() {
@@ -306,6 +321,10 @@
   // treble C4–C5.
   function applyPitchContext(data) {
     clef = String((data && data.clef) || "treble");
+    curKey = String((data && data.key) || "C");
+    curMode = String((data && data.mode) || "major");
+    curTimeSig = String((data && data.timeSig) || "4/4");
+    curKeySig = String((data && data.keySig) || "");
     PITCHES = buildPitches(targetEventsFromData(data), clef);
   }
 
@@ -313,9 +332,10 @@
     return {
       version: 2,
       clef: clef,
-      key: "C",
-      mode: "major",
-      timeSig: "4/4",
+      key: curKey,
+      mode: curMode,
+      timeSig: curTimeSig,
+      keySig: curKeySig,
       events: state.events.map(function (event) {
         if (event.kind === "rest") {
           return { kind: "rest", duration: event.duration };
@@ -331,7 +351,13 @@
       userEvent.kind === targetEvent.kind &&
       userEvent.startUnit === targetEvent.startUnit &&
       userEvent.duration === targetEvent.duration &&
-      (userEvent.kind === "rest" || userEvent.pitch === targetEvent.pitch)
+      // Compare by STAFF POSITION, not pitch string: the editor only lets the
+      // student express a letter+octave line/space (the key signature supplies
+      // the accidental), so a target of "F#4" must match a placed "F4" on the F
+      // line. ordinalOf strips accidentals to the diatonic position. (For the
+      // all-natural melodies shipped today this is identical to === .)
+      (userEvent.kind === "rest" ||
+        ordinalOf(userEvent.pitch) === ordinalOf(targetEvent.pitch))
     );
   }
 
@@ -731,7 +757,7 @@
     ctx.setStrokeStyle(ink);
 
     var stave = new VF.Stave(4, staveY, width - 10);
-    stave.addClef(clef).addTimeSignature("4/4");
+    stave.addClef(clef).addTimeSignature(curTimeSig);
     stave.setStyle({
       fillStyle: themeVar("--ss-ink-soft", "#6f6a63"),
       strokeStyle: themeVar("--ss-ink-soft", "#6f6a63"),
@@ -1134,8 +1160,8 @@
     var beatText = DURATION_LABELS[state.duration].toLowerCase();
 
     if (ghost.type === "rest") {
-      var restY =
-        ghost.units >= 8 ? yForPitchIndex(6) + 1.5 : yForPitchIndex(6) - 6.5;
+      var midLineY = geo.yBottom - 4 * geo.halfStep; // middle staff line
+      var restY = ghost.units >= 8 ? midLineY + 1.5 : midLineY - 6.5;
       svgEl(
         "rect",
         {
@@ -1161,13 +1187,21 @@
     var noteY = yForPitchIndex(ghost.pitchIndex);
     var headX = x0;
 
-    /* ledger line for C4 */
-    if (ghost.pitchIndex === 0) {
+    /* Ledger lines for a note above/below the staff (preview only; the committed
+       note gets exact ledgers from VexFlow). One at each line position between the
+       staff edge and the note, derived from the pitch's staff ordinal — not a
+       fixed index, which was wrong once the pitch window became clef/range-driven. */
+    var noteOrd = ordinalOf(ghost.pitch);
+    var topLineOrd = geo.refOrdinal + 8;
+    var ledgerOrds = [];
+    for (var lo = geo.refOrdinal - 2; lo >= noteOrd; lo -= 2) ledgerOrds.push(lo);
+    for (var hi = topLineOrd + 2; hi <= noteOrd; hi += 2) ledgerOrds.push(hi);
+    for (var li = 0; li < ledgerOrds.length; li++) {
       svgEl(
         "rect",
         {
           x: headX - 10,
-          y: noteY - 0.9,
+          y: geo.yBottom - (ledgerOrds[li] - geo.refOrdinal) * geo.halfStep - 0.9,
           width: 20,
           height: 1.8,
           fill: accent,
@@ -1197,7 +1231,7 @@
     }
 
     if (state.duration !== "w") {
-      var stemUp = ghost.pitchIndex < 6;
+      var stemUp = ordinalOf(ghost.pitch) < geo.refOrdinal + 4; // below middle line
       svgEl(
         "rect",
         {

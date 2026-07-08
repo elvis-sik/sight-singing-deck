@@ -421,7 +421,30 @@
     notationEl.innerHTML = "";
     var measured = notationEl.clientWidth || window.innerWidth - 40;
     var width = opts.width || Math.max(260, Math.min(520, measured));
-    var height = 134;
+
+    // Size height + stave y from the pitch span so high/low notes and their ledger
+    // lines aren't clipped (the same fossil the editor had; VexFlow reserves ~40px
+    // above the top line). Stays 134px / y=14 for a normal in-staff melody; grows
+    // only when notes stray far above/below the staff.
+    var _clef = data.clef || "treble";
+    function _ord(p) {
+      var s = String(p);
+      var oc = parseInt(s.replace(/[^0-9-]/g, ""), 10);
+      return (isNaN(oc) ? 4 : oc) * 7 + "CDEFGAB".indexOf(s.charAt(0).toUpperCase());
+    }
+    var _refBot = _clef === "bass" ? _ord("G2") : _ord("E4");
+    var _refTop = _clef === "bass" ? _ord("A3") : _ord("F5");
+    var _lo = _refBot, _hi = _refTop;
+    for (var _e = 0; _e < data.events.length; _e++) {
+      var _ev = data.events[_e];
+      if (_ev.kind !== "rest" && _ev.pitch) {
+        var _o = _ord(_ev.pitch);
+        if (_o < _lo) _lo = _o;
+        if (_o > _hi) _hi = _o;
+      }
+    }
+    var staveY = 14 + Math.max(0, (_hi - _refTop) * 5 - 6);
+    var height = Math.max(134, staveY + 80 + Math.max(0, _refBot - _lo) * 5 + 20);
     var ink = opts.ink || themeInk();
 
     var renderer = new VF.Renderer(notationEl, VF.Renderer.Backends.SVG);
@@ -432,7 +455,7 @@
 
     var staveW = width - 16;
     var staffInk = opts.staffInk || themeVar("--ss-ink-soft", "#6f6a63");
-    var stave = new VF.Stave(8, 14, staveW);
+    var stave = new VF.Stave(8, staveY, staveW);
     stave.addClef(data.clef || "treble");
     if (data.keySig) {
       try {

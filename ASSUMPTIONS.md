@@ -101,6 +101,16 @@ The happy surprise: **almost nothing bites today**, and almost everything latent
 bites at a phase we've already planned — so this is really a pre-flight checklist
 for B (rhythm) and C (accidentals/keys). Grouped by when it cracks._
 
+> **Fixed 2026-07-07 (an "audit-fixes" pass before Phase B):** both *bites-now*
+> items (ghost-preview geometry, renderer fixed height); and, as prep, **position-
+> based grading** (`eventsMatch` now compares staff position — a no-op for the
+> all-natural cards today, correct for accidental keys), **answer-staff key/meter
+> threading**, **`_melody_id` harmonic-minor distinctness** (zero churn to existing
+> ids), the dead **`is_tendency_tone`**, and the **localStorage fallback**. Still
+> open: editor accidental *input* + key-sig display + the G/F keys track (Phase C);
+> the tritone-mode for minor interval drills (with C); every Phase-B rhythm item.
+> Items below are marked ✅ where done.
+
 **Cleared (checked, provably fine):** deck-id collisions — every id computed, no
 overlap within the dictation tree or against sight-singing (91-id gap); model ids
 distinct. The hardcoded `4/4` is load-bearing single-meter, not a crammed-bar bug.
@@ -108,7 +118,7 @@ distinct. The hardcoded `4/4` is load-bearing single-meter, not a crammed-bar bu
 correct (la-minor shares triad indices with major). Legacy MVP audio constants are
 a dead path. `tonic_octave_for` raises loudly on an unknown clef, not silently.
 
-### Bites now (real today, small)
+### Bites now (real today, small) — ✅ both fixed
 - **Ghost hover-preview geometry** — `_transcription.js` ~1138/1165/1200. The
   ledger-line and stem-direction of the *hover preview* still use fixed `PITCHES`
   indices (index 0 = C4, index 6 = middle line) from the old one-octave window; now
