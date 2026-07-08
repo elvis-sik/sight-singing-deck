@@ -159,17 +159,21 @@ a dead path. `tonic_octave_for` raises loudly on an unknown clef, not silently.
   `startUnit % units` check (dotted values align to the *beat*, not their own
   length — a dotted quarter is 3 units yet may start on beat 3), and a dot modifier
   on the duration bar (rhythm cards) enters `qd`/`hd`. Unblocked rung **R6**.
-- **Editor still rejects ties/triplets** — `_transcription.js`. Ties/syncopation
-  (R7) need off-beat note starts (relax quarter alignment, or a tie tool); triplets
-  (R8/R9) need a 1/3 sub-beat grid the integer eighth-unit model can't express. The
-  renderer already draws both. Deferred to the next advanced-rhythm pass.
-- **Triplet unit math double-counts** in the measure-split — `_renderer.js`.
-  A triplet eighth returns 1 unit but sounds 2/3; multi-bar melodies with triplets
-  get spurious barlines/rest padding. Track *sounded* ticks separately. (Only bites
-  once triplet input ships.)
-- **`capacityForData` assumes a 2-unit (quarter) beat** — `_transcription.js`.
-  Fine for x/4, wrong for compound meters (6/8's beat is a dotted quarter). (Only
-  bites once compound-meter content ships.)
+- ✅ **Editor rejected ties/triplets** — fixed in **Phase D-2**. Syncopation (R7):
+  rhythm cards relax note-start alignment to the eighth grid, and `soundedRhythm`'s
+  tie handling was corrected (a tie suppresses the note it is tied *into*, not its
+  own onset), so an off-beat quarter grades identical to the target's tied eighths.
+  Triplets (R8/R9): a target containing triplets switches the grid to `UNITS_PER_BEAT
+  = 6` (a triplet eighth is an integer 2 units), with a one-tap triplet tool and
+  editor-side tuplet grouping (the "3" bracket).
+- ✅ **Triplet unit math double-counts** in the measure-split — fixed in **Phase
+  D-2**: `_renderer.js` now counts a triplet eighth as 2/3 of a beat (×3 integer
+  scale) so a bar of triplets no longer gets a spurious mid-triplet barline + rest
+  padding. This also cleaned up the already-shipped sight-singing R8/R9 cards.
+- **`capacityForData` assumes a UNITS_PER_BEAT-unit beat** — `_transcription.js`.
+  Now parameterized (2 duple / 6 triplet), but still assumes a *simple* meter (the
+  beat is a plain note value). Wrong for compound meters (6/8's beat is a dotted
+  quarter). Only bites once compound-meter content ships — none exists.
 
 ### Bites at Phase C (accidentals / keys) — the main cluster — ✅ all closed in Phase C
 - ✅ **Grading compares exact pitch strings, but the editor only speaks diatonic

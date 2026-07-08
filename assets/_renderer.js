@@ -498,18 +498,26 @@
     // beats. Boundaries fall between events for our data (quarter/half notes
     // divide the bar evenly). `notes[i]` still carries per-event styling and is
     // referenced by the beam/tuplet/tie groups, so those are unaffected.
+    // Measure boundaries use SOUNDED duration: a triplet eighth is 2/3 of a beat,
+    // not a full eighth, so 3 of them fill one beat — without this, a bar of
+    // triplets over-counts (8 → 9 units) and gets a spurious mid-triplet barline +
+    // rest padding. Work in a ×3 integer scale (eighth = 3, triplet eighth = 2) so
+    // the modulo stays exact; non-triplet cards scale uniformly and are unchanged.
     var barUnits = measureUnits(data.timeSig);
+    var barUnits3 = barUnits * 3;
     var tickables = [];
     var acc = 0;
     for (var ti = 0; ti < data.events.length; ti++) {
-      if (barUnits && acc > 0 && acc % barUnits === 0) {
+      if (barUnits3 && acc > 0 && acc % barUnits3 === 0) {
         tickables.push(new VF.BarNote());
       }
       tickables.push(notes[ti]);
-      acc += durationUnits(data.events[ti].duration);
+      var scaled = durationUnits(data.events[ti].duration) * 3;
+      if (data.events[ti].tuplet) scaled = (scaled * 2) / 3; // 3-in-2 tuplet
+      acc += scaled;
     }
-    if (barUnits && acc % barUnits !== 0) {
-      var restDurs = fillRestDurations(barUnits - (acc % barUnits));
+    if (barUnits3 && acc % barUnits3 !== 0) {
+      var restDurs = fillRestDurations((barUnits3 - (acc % barUnits3)) / 3);
       for (var ri = 0; ri < restDurs.length; ri++) {
         tickables.push(
           vexNoteForEvent(VF, data.clef || "treble",

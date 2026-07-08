@@ -36,14 +36,23 @@ covers only the parallel dictation path.
 >   overrides), so a bare F on the F line matches an F♯ target in G major while a
 >   bare G is a genuine miss against the harmonic-minor `si`.
 >
-> - **Phase D (in progress)** adds **dotted-note input** — a dot modifier on the
->   editor's duration bar (rhythm cards only) with a beat-alignment fix so a dotted
->   quarter (3 eighth-units) can start on any beat. Unblocks the **dotted rung R6**,
->   now in `5 · Rhythm` (R1–R6).
+> - **Phase D** completes rhythm-dictation input, so `5 · Rhythm` now runs the full
+>   **R1–R9** ladder:
+>   - *D-1 — dotted notes:* a dot modifier on the duration bar (beat-alignment fix
+>     so a dotted quarter, 3 eighth-units, starts on any beat). Rung R6.
+>   - *D-2 — syncopation:* rhythm cards allow off-beat note starts, and the
+>     sounded-rhythm grader's tie handling was corrected (a tie suppresses the note
+>     it is tied *into*), so an off-beat quarter grades identical to the target's
+>     tied eighths. Rung R7.
+>   - *D-2 — triplets:* a card whose target contains triplets switches the editor to
+>     a **sextuplet grid** (6 units/beat, so a triplet eighth is an integer 2 units);
+>     a one-tap **triplet tool** fills a beat with three notes (engraved under a "3"
+>     bracket). The renderer's measure-split now counts a triplet eighth as 2/3 of a
+>     beat (fixing a spurious barline that also affected the sight-singing R8/R9
+>     cards). Rungs R8/R9.
 >
-> **Still deferred:** tie/syncopation input (R7 — needs off-beat note starts),
-> triplet input (R8/R9 — needs a 1/3 sub-beat grid), compound meter, and
-> solfège-first answer entry.
+> **Still deferred:** compound meter (no content generated for it yet) and
+> solfège-first answer entry (a separate input mode).
 
 ## Why a separate curriculum
 
