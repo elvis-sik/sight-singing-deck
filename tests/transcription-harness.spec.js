@@ -255,6 +255,35 @@ test("multi-bar melody (6 quarters) sizes the grid and accepts notes past bar 1"
   );
 });
 
+test("bass clef + low range: places notes below the old treble window", async ({
+  page,
+}) => {
+  await page.goto("/debug/transcription-harness-bass.html");
+  await page.waitForSelector(".ss-editor-overlay");
+
+  // Bass-clef melody G3-A3-B3-C4 — all below the editor's old fixed C4–C5 treble
+  // window. Real mouse events must hit the overlay at these pitches' positions
+  // (the vertical-layout regression this guards: low notes fell off the canvas).
+  const target = [
+    [0, "G3"],
+    [2, "A3"],
+    [4, "B3"],
+    [6, "C4"],
+  ];
+  for (const [unit, pitch] of target) {
+    await tapStaff(page, unit, pitch);
+  }
+  const state = await debugState(page);
+  expect(state.events).toEqual(
+    target.map(([unit, pitch]) => ({
+      kind: "note",
+      pitch,
+      duration: "q",
+      startUnit: unit,
+    }))
+  );
+});
+
 test("review page compares the saved answer with the target", async ({
   page,
 }) => {

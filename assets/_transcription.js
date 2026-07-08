@@ -4,7 +4,58 @@
 
   /* ---- music model ------------------------------------------------------- */
 
+  // The editor works in letter+octave STAFF POSITIONS (no accidentals — the key
+  // signature supplies those). `PITCHES` is the placeable range; it is rebuilt
+  // per melody from the target's span (and the clef) in initFront/renderSummary,
+  // so the editor is no longer locked to one treble octave. Default keeps the
+  // historical treble C4–C5 window.
   var PITCHES = ["C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5"];
+  var clef = "treble";
+  var LETTERS = "CDEFGAB";
+
+  // Diatonic ordinal: octave*7 + letter index, ignoring any accidental. Adjacent
+  // ordinals are adjacent staff positions (a line/space step).
+  function ordinalOf(pitch) {
+    var p = String(pitch);
+    var oct = parseInt(p.replace(/[^0-9-]/g, ""), 10);
+    return (isNaN(oct) ? 4 : oct) * 7 + LETTERS.indexOf(p.charAt(0).toUpperCase());
+  }
+  function pitchFromOrdinal(ord) {
+    return LETTERS.charAt(((ord % 7) + 7) % 7) + Math.floor(ord / 7);
+  }
+  // Staff bottom line (VexFlow line 4) and top line (line 0) pitch, per clef.
+  function clefBottomOrdinal() {
+    return clef === "bass" ? ordinalOf("G2") : ordinalOf("E4");
+  }
+  function clefTopOrdinal() {
+    return clef === "bass" ? ordinalOf("A3") : ordinalOf("F5");
+  }
+  // Build the placeable pitch list spanning the target melody (padded a step),
+  // always covering the staff itself so an empty staff still looks normal.
+  function buildPitches(events, cl) {
+    var prev = clef;
+    clef = cl;
+    var lo = clefBottomOrdinal();
+    var hi = clefTopOrdinal();
+    for (var i = 0; i < events.length; i++) {
+      if (events[i].kind === "note" && events[i].pitch) {
+        var o = ordinalOf(events[i].pitch);
+        if (o < lo) lo = o;
+        if (o > hi) hi = o;
+      }
+    }
+    lo -= 1;
+    hi += 1;
+    clef = prev;
+    var out = [];
+    for (var ord = lo; ord <= hi; ord++) out.push(pitchFromOrdinal(ord));
+    return out;
+  }
+  // Neutral rest staff position (middle line) per clef, as a VexFlow key.
+  function restKey() {
+    return clef === "bass" ? "d/3" : "b/4";
+  }
+
   var BAR_UNITS = 8; // eighth-note units in one 4/4 bar
   // The editor's working length in eighth-units. It equals the target melody's
   // total length (beat-aligned), so a 4-quarter melody keeps the historical
@@ -246,14 +297,22 @@
 
   function supportedData(data) {
     if (!data) return false;
-    if (String(data.clef || "treble") !== "treble") return false;
+    if (["treble", "bass"].indexOf(String(data.clef || "treble")) < 0) return false;
     return targetEventsFromData(data).length > 0;
+  }
+
+  // Size the pitch window + clef from the target before rendering/loading, so the
+  // editor covers the melody (any octave, treble or bass) rather than a fixed
+  // treble C4–C5.
+  function applyPitchContext(data) {
+    clef = String((data && data.clef) || "treble");
+    PITCHES = buildPitches(targetEventsFromData(data), clef);
   }
 
   function buildAnswerData() {
     return {
       version: 2,
-      clef: "treble",
+      clef: clef,
       key: "C",
       mode: "major",
       timeSig: "4/4",
@@ -643,7 +702,22 @@
     var perBeat = Math.max(1, Math.ceil(capacity / 2)) * 46;
     var wanted = Math.max(measured, 110 + perBeat);
     var width = Math.max(260, Math.min(720, wanted));
-    var height = 144;
+
+    // Vertical layout adapts to the pitch range so high (minor) or low (bass)
+    // notes and their stems/ledger lines aren't clipped. VexFlow's default line
+    // spacing is 10px (one diatonic step = 5px) and it reserves ~40px of space
+    // ABOVE the top staff line (getYForLine(0) = staveY + PAD_TOP), which the
+    // canvas height and stave y must both account for or low notes fall off the
+    // bottom (and real pointer events then miss the overlay). PITCHES already
+    // spans the melody (padded) and the staff.
+    var STEP_PX = 5;
+    var PAD_TOP = 40; // VexFlow space_above_staff: getYForLine(0) - stave.y
+    var STAFF_H = 40; // line 0 → line 4
+    var aboveTop = Math.max(0, ordinalOf(PITCHES[PITCHES.length - 1]) - clefTopOrdinal());
+    var belowBot = Math.max(0, clefBottomOrdinal() - ordinalOf(PITCHES[0]));
+    // Keep the highest placeable note ~34px from the top (room for stem + label).
+    var staveY = Math.max(0, aboveTop * STEP_PX - 6);
+    var height = staveY + PAD_TOP + STAFF_H + belowBot * STEP_PX + 24;
     var ink = themeVar("--ss-ink", "#221f1c");
     var faint = themeVar("--ss-ink-faint", "#aca69d");
 
@@ -656,8 +730,8 @@
     ctx.setFillStyle(ink);
     ctx.setStrokeStyle(ink);
 
-    var stave = new VF.Stave(4, 24, width - 10);
-    stave.addClef("treble").addTimeSignature("4/4");
+    var stave = new VF.Stave(4, staveY, width - 10);
+    stave.addClef(clef).addTimeSignature("4/4");
     stave.setStyle({
       fillStyle: themeVar("--ss-ink-soft", "#6f6a63"),
       strokeStyle: themeVar("--ss-ink-soft", "#6f6a63"),
@@ -674,14 +748,14 @@
       if (slot.kind === "event") {
         if (slot.event.kind === "rest") {
           note = new VF.StaveNote({
-            clef: "treble",
-            keys: ["b/4"],
+            clef: clef,
+            keys: [restKey()],
             duration: slot.event.duration + "r",
           });
         } else {
           /* "G4" -> "g/4" (letter + octave; editor pitches carry no accidentals) */
           note = new VF.StaveNote({
-            clef: "treble",
+            clef: clef,
             keys: [
               slot.event.pitch.charAt(0).toLowerCase() +
                 "/" +
@@ -692,8 +766,8 @@
         }
       } else {
         note = new VF.StaveNote({
-          clef: "treble",
-          keys: ["b/4"],
+          clef: clef,
+          keys: [restKey()],
           duration: slot.duration + "r",
           align_center: slot.duration === "w" && !state.events.length,
         });
@@ -779,8 +853,9 @@
     }
     anchors.push({ unit: capacity, x: endX });
 
-    var yBottom = stave.getYForLine(4); // E4 line
+    var yBottom = stave.getYForLine(4); // staff line 4 == clefBottomOrdinal()
     var halfStep = (stave.getYForLine(4) - stave.getYForLine(3)) / 2;
+    var refOrdinal = clefBottomOrdinal();
 
     /*
      * Uniform pixel grid over the bar. Block selection and the ghost
@@ -802,6 +877,7 @@
       staveBottomY: yBottom,
       yBottom: yBottom,
       halfStep: halfStep,
+      refOrdinal: refOrdinal,
       gridLeft: gridLeft,
       gridRight: gridRight,
       unitPx: unitPx,
@@ -859,12 +935,18 @@
     return tile * units;
   }
 
+  // geo.yBottom is the y of staff line 4, which is the pitch clefBottomOrdinal()
+  // (E4 treble / G2 bass). A note that many diatonic steps higher sits that many
+  // half-steps up (smaller y). PITCHES is a contiguous ordinal run, so the index
+  // is just the offset from PITCHES[0].
   function yForPitchIndex(index) {
-    return geo.yBottom - (index - 2) * geo.halfStep;
+    var steps = ordinalOf(PITCHES[index]) - geo.refOrdinal;
+    return geo.yBottom - steps * geo.halfStep;
   }
 
   function pitchIndexFromY(y) {
-    var index = Math.round(2 + (geo.yBottom - y) / geo.halfStep);
+    var ord = Math.round(geo.refOrdinal + (geo.yBottom - y) / geo.halfStep);
+    var index = ord - ordinalOf(PITCHES[0]);
     if (index < 0) return 0;
     if (index >= PITCHES.length) return PITCHES.length - 1;
     return index;
@@ -1297,6 +1379,7 @@
     if (!resultEl || !targetEl) return;
 
     capacity = capacityForData(data);
+    applyPitchContext(data);
 
     if (!supportedData(data)) {
       resultEl.className = "ss-verdict ss-verdict-none";
@@ -1380,6 +1463,7 @@
 
     var data = parseData();
     capacity = capacityForData(data);
+    applyPitchContext(data);
     clearSavedEvents();
     state.events = [];
     state.history = [];
@@ -1496,9 +1580,10 @@
 
   window.SightSingingTranscriptionReview = function () {
     var data = parseData();
-    // Size the grid before loading the saved answer: a multi-bar answer has
-    // events past unit 8, which the single-bar default would filter out.
+    // Size the grid + pitch window before loading the saved answer: a multi-bar
+    // or out-of-treble-octave answer would otherwise be filtered out.
     capacity = capacityForData(data);
+    applyPitchContext(data);
     state.events = loadSavedEvents();
     renderSummary(data);
   };
