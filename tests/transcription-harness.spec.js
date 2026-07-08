@@ -403,6 +403,70 @@ test("transfer key: a bare F on the F line matches an F# target via the key sign
   expect(glyphs.user).toBe(glyphs.target);
 });
 
+test("dot modifier appears only for rhythm cards, is beat-aligned, and places a dotted quarter", async ({
+  page,
+}) => {
+  // Melodic (C major) card: no dot modifier — the spine is even-rhythm.
+  await page.goto("/debug/transcription-harness.html");
+  await page.waitForSelector(".ss-editor-overlay");
+  await expect(page.locator("#transcribe-dot")).toHaveCount(0);
+
+  // Rhythm card: the dot modifier is present. It dims on the eighth (dotted eighth
+  // would break the integer grid) and is live on the quarter.
+  await page.goto("/debug/transcription-harness-dotted.html");
+  await page.waitForSelector(".ss-editor-overlay");
+  await expect(page.locator("#transcribe-dot")).toHaveCount(1);
+
+  await page.locator("#transcribe-duration-8").click();
+  await expect(page.locator("#transcribe-dot")).toHaveClass(/ss-btn-dot-disabled/);
+  await page.locator("#transcribe-duration-q").click();
+  await expect(page.locator("#transcribe-dot")).not.toHaveClass(
+    /ss-btn-dot-disabled/
+  );
+
+  // Turn the dot on and place a dotted quarter on beat 3 (unit 4). A dotted quarter
+  // is 3 units, so `% units` alignment would forbid unit 4 — the beat-alignment fix
+  // is what lets it land.
+  await page.locator("#transcribe-dot").click();
+  await expect(page.locator("#transcribe-dot")).toHaveClass(/ss-tool-active/);
+  await tapStaff(page, 4, "B4");
+
+  const state = await debugState(page);
+  expect(state.dotted).toBe(true);
+  expect(state.events).toEqual([
+    { kind: "note", pitch: "B4", duration: "qd", startUnit: 4 },
+  ]);
+});
+
+test("dotted rhythm grades perfect when the dotted quarter is entered", async ({
+  page,
+}) => {
+  // Target: quarter, two eighths, dotted quarter, eighth. The seeded answer spells
+  // the dotted quarter with the dot modifier; sounded grading calls it perfect.
+  await page.goto("/debug/review-harness-dotted.html");
+  await page.waitForSelector("#transcribe-target svg");
+  await expect(page.locator("#transcribe-result")).toContainText(
+    "Perfect — the rhythm matches"
+  );
+
+  // Replace the dotted quarter with a plain quarter (loses beat-3's held half-unit):
+  // the sounded rhythm now differs, so it is no longer perfect.
+  await page.evaluate(() => {
+    localStorage.setItem(
+      "ss-transcribe:debug_review_dotted",
+      JSON.stringify([
+        { kind: "note", pitch: "B4", duration: "q", startUnit: 0 },
+        { kind: "note", pitch: "B4", duration: "8", startUnit: 2 },
+        { kind: "note", pitch: "B4", duration: "8", startUnit: 3 },
+        { kind: "note", pitch: "B4", duration: "q", startUnit: 4 },
+        { kind: "note", pitch: "B4", duration: "8", startUnit: 6 },
+      ])
+    );
+    window.SightSingingTranscriptionReview();
+  });
+  await expect(page.locator("#transcribe-result")).not.toContainText("Perfect");
+});
+
 test("rhythm dictation grades by sounded rhythm (rest spelling + pitch agnostic)", async ({
   page,
 }) => {

@@ -153,16 +153,23 @@ a dead path. `tonic_octave_for` raises loudly on an unknown clef, not silently.
   read-only notation/target/answer staves; a high treble or low bass note can clip.
   Fix: size height from the pitch span (mirror the editor's `aboveTop/belowBot`).
 
-### Bites at Phase B (rhythm)
-- **Editor rejects dotted/tie/triplet durations** — `_transcription.js:65,269`.
-  `DURATION_UNITS`/`ORDER` have no `qd`/tie/triplet, so `durationUnits` → 0 → the
-  whole card shows "outside scope." The renderer already draws them. Triplets also
-  need a sub-grid (the editor grid is integer eighth-units).
-- **Triplet unit math double-counts** in the measure-split — `_renderer.js:471`.
+### Bites at Phase B/D (rhythm input)
+- ✅ **Editor rejected dotted durations** — fixed in **Phase D**. `durationUnits`
+  now honours a trailing "d" (×1.5), a `DURATION_ALIGN` table replaces the
+  `startUnit % units` check (dotted values align to the *beat*, not their own
+  length — a dotted quarter is 3 units yet may start on beat 3), and a dot modifier
+  on the duration bar (rhythm cards) enters `qd`/`hd`. Unblocked rung **R6**.
+- **Editor still rejects ties/triplets** — `_transcription.js`. Ties/syncopation
+  (R7) need off-beat note starts (relax quarter alignment, or a tie tool); triplets
+  (R8/R9) need a 1/3 sub-beat grid the integer eighth-unit model can't express. The
+  renderer already draws both. Deferred to the next advanced-rhythm pass.
+- **Triplet unit math double-counts** in the measure-split — `_renderer.js`.
   A triplet eighth returns 1 unit but sounds 2/3; multi-bar melodies with triplets
-  get spurious barlines/rest padding. Track *sounded* ticks separately.
-- **`capacityForData` assumes a 2-unit (quarter) beat** — `_transcription.js:294`.
-  Fine for x/4, wrong for compound meters (6/8's beat is a dotted quarter).
+  get spurious barlines/rest padding. Track *sounded* ticks separately. (Only bites
+  once triplet input ships.)
+- **`capacityForData` assumes a 2-unit (quarter) beat** — `_transcription.js`.
+  Fine for x/4, wrong for compound meters (6/8's beat is a dotted quarter). (Only
+  bites once compound-meter content ships.)
 
 ### Bites at Phase C (accidentals / keys) — the main cluster — ✅ all closed in Phase C
 - ✅ **Grading compares exact pitch strings, but the editor only speaks diatonic

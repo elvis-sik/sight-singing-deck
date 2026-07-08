@@ -364,6 +364,19 @@
   pointer-events: none;
 }
 
+/* Dot modifier (rhythm cards) — a duration-bar button showing a dotted note. */
+.ss-dot-glyph {
+  display: block;
+  height: 26px;
+  line-height: 26px;
+  font-size: 22px;
+  font-weight: 700;
+}
+.ss-btn-dot-disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
 /* ---- status + beat progress ---------------------------------------------- */
 
 .ss-status-row {
