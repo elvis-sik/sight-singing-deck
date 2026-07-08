@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Transcription Harness · bass clef</title>
+    <link rel="stylesheet" href="../assets/card_styles.css" />
+    <link rel="stylesheet" href="harness.css" />
+  </head>
+  <body class="card">
+    <button type="button" class="ss-btn harness-night-toggle" id="night-toggle">Night mode</button>
+    <p class="harness-title">Transcribe · front · bass clef (low range)</p>
+
+    <script>
+      window.sightSingingMelodyId = "debug_harness_bass";
+    </script>
+
+    <div class="ss-wrap">
+      <div id="melody-data" style="display:none;">
+        {"version":2,"clef":"bass","key":"C","mode":"major","timeSig":"4/4","notes":["G3","A3","B3","C4"],"durations":["q","q","q","q"],"bars":[{"events":[{"kind":"note","pitch":"G3","duration":"q"},{"kind":"note","pitch":"A3","duration":"q"},{"kind":"note","pitch":"B3","duration":"q"},{"kind":"note","pitch":"C4","duration":"q"}]}],"degrees":[5,6,7,8]}
+      </div>
+      <div class="ss-meta" id="melody-meta" data-ss-badge="Transcribe"></div>
+      <div class="ss-panel ss-editor-panel">
+        <div id="transcribe-editor"></div>
+      </div>
+      <div id="transcribe-ui"></div>
+      <p class="ss-prompt ss-prompt-transcribe">Write down the melody you hear.</p>
+    </div>
+
+    <p class="harness-nav">
+      <a href="transcription-harness.html">Transcribe</a> ·
+      <a href="review-harness.html">Review</a> ·
+      <a href="sing-harness.html">Sing</a>
+    </p>
+
+    <script src="../assets/_vexflow.js"></script>
+    <script src="../assets/_renderer.js"></script>
+    <script src="../assets/_transcription.js"></script>
+    <script>
+      document.getElementById("night-toggle").addEventListener("click", function () {
+        document.body.classList.toggle("nightMode");
+        document.body.classList.toggle("night_mode");
+        if (window.SightSingingRedraw) window.SightSingingRedraw();
+        if (window.SightSingingTranscriptionRefresh) window.SightSingingTranscriptionRefresh();
+      });
+    </script>
+  </body>
+</html>

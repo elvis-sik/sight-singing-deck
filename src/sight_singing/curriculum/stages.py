@@ -432,7 +432,131 @@ DICTATION_STAGES: list[Stage] = [
 ]
 
 
+# --- Minor dictation ladder (ND-series) ---------------------------------------
+# Mirror of DICTATION_STAGES into la-based minor, exactly as MINOR_STAGES mirrors
+# MAJOR_STAGES: the structural rungs recast into natural minor (tonic triad
+# la-do-mi = indices 0,2,4, same as major, so triad/step/leap specs stay
+# function-correct); only the half-steps move (ti→do at index 1, fa→mi at index
+# 5). The major tendency stage (DD8) is replaced by a natural-minor leading-tone
+# stage (ND8), and a harmonic-minor capstone (ND9h, raised 7 si→la) is defined but
+# kept OUT of the built deck — its si is a G♯ (a non-key-signature accidental) and
+# the transcription editor has no accidental input yet. All dictation invariants
+# carry over (one new variable per rung, no repeats, ceiling ≤5th, forced tendency).
+_MINOR_DICT_TITLES = {
+    "DP1": "Two-Note Pillars (la–do–mi)",
+    "DP2": "Two-Note Step (minor)",
+    "DD1": "The Minor Triad Skeleton (la–do–mi)",
+    "DD2": "Stepwise Neighbors (minor)",
+    "DD3": "The Minor Pentachord",
+    "DD4": "Into the Upper Scale (minor)",
+    "DD5": "Long Stepwise Phrases (minor)",
+    "DD6": "Skips of a Third (minor)",
+    "DD7": "Fourths & Fifths (minor)",
+    "DD9": "Free Diatonic (minor capstone)",
+}
+
+
+def _to_minor_dictation(stage: Stage) -> Stage:
+    """Recast a structural dictation stage into natural minor (cf. _to_minor)."""
+    new_id = "N" + stage.id if stage.id.startswith("DP") else "N" + stage.id[1:]
+    return replace(
+        stage,
+        id=new_id,
+        title=_MINOR_DICT_TITLES.get(stage.id, stage.title),
+        phase="minor-dictation",
+        mode="natural_minor",
+        require_tendency_present=False,
+        require_tendency_resolution=False,
+        tendency_up_from=(1,),
+        tendency_down_from=(5,),
+    )
+
+
+# Priming singletons for minor: indices 0,2,4 = the la/do/mi pillars (NDP0).
+DICTATION_MINOR_PRIMING_SINGLETONS: tuple[tuple[int, ...], ...] = (
+    (D1,), (D3,), (D5,),
+)
+
+_MINOR_DICT_STRUCTURAL = [
+    _to_minor_dictation(s)
+    for s in DICTATION_STAGES
+    if s.id not in ("DD8", "DD9")
+]
+
+# ND8 · natural-minor leading tone — ti→do (index 1→2) resolves in EVERY item.
+# Mirror of DD8: require the leading tone present (require_present_any=(D2,) = ti,
+# index 1) and hold it to resolution; leave fa free (tendency_down_from=()) so
+# ascending lines through fa aren't rejected. end_pool excludes ti so it always
+# has a successor to resolve into.
+_ND8 = Stage(
+    "ND8", "Tendency Tones — Ti Wants Do (natural minor)", "minor-dictation",
+    pool=_DFULL_L, start_pool=(D1, D2, D3, D4, D5), end_pool=(D1, D3, D5, D8),
+    max_step=2, min_step=1, length=5, count=16, min_distinct=3,
+    max_leaps=2, require_recovery=False,
+    mode="natural_minor",
+    require_tendency_present=True, require_tendency_resolution=True,
+    require_present_any=(D2,),
+    tendency_up_from=(1,), tendency_down_from=(),
+    notes="Foreground the natural-minor leading tone: ti→do (index 1) resolves in "
+          "every item. fa→mi is trained across the stepwise stages and appears "
+          "here too. Length 4→5; no new leap class (≤3rd, already learned).",
+)
+
+# ND9 · free diatonic capstone (natural minor). Mirror of DD9 but with minor's
+# half-step positions; keep DD9's require_tendency_present (a blind recast clears
+# it), so build it explicitly.
+_ND9 = replace(
+    next(s for s in DICTATION_STAGES if s.id == "DD9"),
+    id="ND9",
+    title=_MINOR_DICT_TITLES["DD9"],
+    phase="minor-dictation",
+    mode="natural_minor",
+    tendency_up_from=(1,), tendency_down_from=(5,),
+)
+
+# ND9h · harmonic-minor capstone — raised 7 (si) resolves up a half-step to la in
+# EVERY item. Both leading tones available (lower si index -1 → tonic la index 0;
+# upper si index 6 → la′ index 7); fa (index 5) left out to avoid the augmented
+# 2nd fa→si. DEFERRED from the built deck: si = G♯ needs accidental input.
+_ND9h = Stage(
+    "ND9h", "The Raised 7th — Harmonic Minor (si→la)", "minor-dictation",
+    pool=(DL7, D1, D2, D3, D4, D5, D7, D8), start_pool=(D1, D3, D5),
+    end_pool=(D1, D8), max_step=2, min_step=1, length=5, count=16, min_distinct=3,
+    max_leaps=2, require_recovery=False,
+    mode="harmonic_minor",
+    require_tendency_present=True, require_tendency_resolution=True,
+    require_present_any=(D7, DL7),
+    tendency_up_from=(6,), tendency_down_from=(),
+    notes="Harmonic minor's raised 7 (si) resolves up to la in every item. "
+          "Deferred from the built deck until the editor accepts accidentals "
+          "(si = G♯ in A minor).",
+)
+
+# Natural-minor ladder (built). The harmonic capstone is kept separate.
+DICTATION_MINOR_STAGES: list[Stage] = [*_MINOR_DICT_STRUCTURAL, _ND8, _ND9]
+DICTATION_MINOR_HARMONIC_STAGES: list[Stage] = [_ND9h]
+
+
+# --- Interval dictation (IVD-series) ------------------------------------------
+# The interval-singing specs re-tagged for the Dictate card: length-2, one pinned
+# diatonic interval each, both directions. A separate sub-track (not part of the
+# melodic-spine invariants), so 6ths/7ths/octaves (max_step > 4) are legitimate.
+DICTATION_INTERVAL_STAGES: list[Stage] = [
+    replace(
+        s,
+        id="IVD" + s.id[2:],
+        phase="dictation-interval",
+        notes=s.notes + " (dictation: hear the interval, notate it).",
+    )
+    for s in INTERVAL_STAGES
+]
+
+
 STAGES_BY_ID = {
     s.id: s
-    for s in (*MAJOR_STAGES, *MINOR_STAGES, *INTERVAL_STAGES, *DICTATION_STAGES)
+    for s in (
+        *MAJOR_STAGES, *MINOR_STAGES, *INTERVAL_STAGES, *DICTATION_STAGES,
+        *DICTATION_MINOR_STAGES, *DICTATION_MINOR_HARMONIC_STAGES,
+        *DICTATION_INTERVAL_STAGES,
+    )
 }
