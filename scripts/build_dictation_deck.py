@@ -162,13 +162,15 @@ TRACKS: list[DictTrack] = [
         "", "", (), _BASS_MINOR, DICT_DECK_BASE + 130, per_stage=6,
     ),
     # Rhythm dictation: hear a one-bar rhythm on a single pitch, notate the rhythm
-    # (graded by sounded rhythm, pitch-agnostic). R1-R6 — through dotted patterns
-    # (the editor's dot modifier). Ties/triplets (R7-R9) still need offbeat/sub-beat
-    # editor input, deferred to the next advanced-rhythm pass.
+    # (graded by sounded rhythm, pitch-agnostic). The full ladder R1-R9: pulse/rests/
+    # eighth-pairs/mixed/offbeat, dotted (dot modifier), syncopation (offbeat quarters
+    # ≡ tied eighths), triplets (triplet tool on the sextuplet grid), and a mixed
+    # capstone.
     DictTrack(
         "5 · Rhythm", "dictation_rhythm", "C", "major", "treble",
         "", "", (), [], DICT_DECK_BASE + 160,
-        kind="rhythm", rhythm_ids=("R1", "R2", "R3", "R4", "R5", "R6"),
+        kind="rhythm",
+        rhythm_ids=("R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9"),
     ),
     DictTrack(
         "6 · Other Keys::G major", "dictation_key_g", "G", "major", "treble",

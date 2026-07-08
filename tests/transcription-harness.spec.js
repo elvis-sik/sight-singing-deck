@@ -467,6 +467,123 @@ test("dotted rhythm grades perfect when the dotted quarter is entered", async ({
   await expect(page.locator("#transcribe-result")).not.toContainText("Perfect");
 });
 
+test("rhythm cards allow off-beat note starts; melodic cards snap to the beat", async ({
+  page,
+}) => {
+  // Rhythm card: a quarter can start on an off-beat eighth (unit 1) — the entry
+  // path for syncopation.
+  await page.goto("/debug/transcription-harness-dotted.html");
+  await page.waitForSelector(".ss-editor-overlay");
+  await tapStaff(page, 1, "B4");
+  expect((await debugState(page)).events).toEqual([
+    { kind: "note", pitch: "B4", duration: "q", startUnit: 1 },
+  ]);
+
+  // Melodic card: the same aim snaps to the beat (unit 0) — beat alignment is kept
+  // where the material is even-rhythm.
+  await page.goto("/debug/transcription-harness.html");
+  await page.waitForSelector(".ss-editor-overlay");
+  await tapStaff(page, 1, "E4");
+  expect((await debugState(page)).events).toEqual([
+    { kind: "note", pitch: "E4", duration: "q", startUnit: 0 },
+  ]);
+});
+
+test("syncopation grades perfect when an off-beat quarter matches the tied-eighths target", async ({
+  page,
+}) => {
+  // Target draws an off-beat quarter as two tied eighths (tie on the 2nd eighth,
+  // tied into the 3rd). The seeded answer spells it as an off-beat QUARTER — same
+  // sound. The corrected tie semantics make the target grid put the attack on the
+  // off-beat, so this is perfect.
+  await page.goto("/debug/review-harness-syncopation.html");
+  await page.waitForSelector("#transcribe-target svg");
+  await expect(page.locator("#transcribe-result")).toContainText(
+    "Perfect — the rhythm matches"
+  );
+
+  // De-syncopate (four on-beat quarters): the onsets move onto the beats, so the
+  // sounded rhythm differs and it is no longer perfect.
+  await page.evaluate(() => {
+    localStorage.setItem(
+      "ss-transcribe:debug_review_sync",
+      JSON.stringify([
+        { kind: "note", pitch: "B4", duration: "q", startUnit: 0 },
+        { kind: "note", pitch: "B4", duration: "q", startUnit: 2 },
+        { kind: "note", pitch: "B4", duration: "q", startUnit: 4 },
+        { kind: "note", pitch: "B4", duration: "q", startUnit: 6 },
+      ])
+    );
+    window.SightSingingTranscriptionReview();
+  });
+  await expect(page.locator("#transcribe-result")).not.toContainText("Perfect");
+});
+
+test("triplet tool appears only on triplet cards and fills a beat with three notes", async ({
+  page,
+}) => {
+  // Non-triplet rhythm card (dotted / R6): eighth grid, no triplet tool.
+  await page.goto("/debug/transcription-harness-dotted.html");
+  await page.waitForSelector(".ss-editor-overlay");
+  expect((await debugState(page)).unitsPerBeat).toBe(2);
+  await expect(page.locator("#transcribe-triplet")).toHaveCount(0);
+
+  // Triplet card: the sextuplet grid (6 units/beat) and the triplet tool.
+  await page.goto("/debug/transcription-harness-triplet.html");
+  await page.waitForSelector(".ss-editor-overlay");
+  expect((await debugState(page)).unitsPerBeat).toBe(6);
+  await expect(page.locator("#transcribe-triplet")).toHaveCount(1);
+
+  // One tap in beat 4 (unit 18) fills it with three tuplet eighths at 18/20/22.
+  await page.locator("#transcribe-triplet").click();
+  await expect(page.locator("#transcribe-triplet")).toHaveClass(/ss-tool-active/);
+  await tapStaff(page, 18, "B4");
+
+  const state = await debugState(page);
+  expect(state.triplet).toBe(true);
+  expect(state.events).toEqual([
+    { kind: "note", pitch: "B4", duration: "8t", startUnit: 18, tuplet: true },
+    { kind: "note", pitch: "B4", duration: "8t", startUnit: 20, tuplet: true },
+    { kind: "note", pitch: "B4", duration: "8t", startUnit: 22, tuplet: true },
+  ]);
+});
+
+test("triplet grades perfect when the beat is entered as a triplet, not duple", async ({
+  page,
+}) => {
+  // Target: three quarters + a beat-4 triplet. Seeded answer enters the triplet.
+  await page.goto("/debug/review-harness-triplet.html");
+  await page.waitForSelector("#transcribe-target svg");
+  await expect(page.locator("#transcribe-result")).toContainText(
+    "Perfect — the rhythm matches"
+  );
+
+  // The bar is exactly 4/4 (3 quarters + a triplet), so it engraves as ONE measure:
+  // no interior barline, no padding rest. This guards the measure-split fix where a
+  // triplet eighth over-counted as a full eighth (8 → 9 units → spurious barline).
+  const bars = await page.evaluate(
+    () => document.querySelectorAll("#transcribe-target svg .vf-barnote").length
+  );
+  expect(bars).toBe(0);
+
+  // Replace the triplet with two duple eighths (units 18 + 21): the beat now sounds
+  // duple, not a triplet, so the sounded rhythm differs and it is no longer perfect.
+  await page.evaluate(() => {
+    localStorage.setItem(
+      "ss-transcribe:debug_review_triplet",
+      JSON.stringify([
+        { kind: "note", pitch: "B4", duration: "q", startUnit: 0 },
+        { kind: "note", pitch: "B4", duration: "q", startUnit: 6 },
+        { kind: "note", pitch: "B4", duration: "q", startUnit: 12 },
+        { kind: "note", pitch: "B4", duration: "8", startUnit: 18 },
+        { kind: "note", pitch: "B4", duration: "8", startUnit: 21 },
+      ])
+    );
+    window.SightSingingTranscriptionReview();
+  });
+  await expect(page.locator("#transcribe-result")).not.toContainText("Perfect");
+});
+
 test("rhythm dictation grades by sounded rhythm (rest spelling + pitch agnostic)", async ({
   page,
 }) => {

@@ -120,23 +120,29 @@
     return clef === "bass" ? "d/3" : "b/4";
   }
 
-  var BAR_UNITS = 8; // eighth-note units in one 4/4 bar
-  // The editor's working length in eighth-units. It equals the target melody's
-  // total length (beat-aligned), so a 4-quarter melody keeps the historical
-  // single-bar behaviour (capacity === BAR_UNITS) while a 5-/6-note phrase lays
-  // out as one longer staff. Set from the target in initFront/renderSummary.
+  // The rhythmic grid resolution: units per quarter-note beat. 2 = eighth grid (the
+  // default — everything divides the beat in halves), 6 = sextuplet grid, used ONLY
+  // for cards whose target contains triplets (a triplet eighth is 1/3 of a beat, so
+  // 6 makes it an integer 2 units while an eighth stays 3). Set per card in
+  // applyPitchContext; it stays 2 for every existing melodic/duple-rhythm card, so
+  // their unit math (and the tests pinned to it) is unchanged.
+  var UNITS_PER_BEAT = 2;
+  var BAR_UNITS = 4 * UNITS_PER_BEAT; // units in one 4/4 bar (reference)
+  // Editor working length in grid units = the target melody's total length
+  // (beat-aligned). Set from the target in initFront/renderSummary.
   var capacity = BAR_UNITS;
-  var DURATION_UNITS = { "8": 1, q: 2, h: 4, w: 8 };
+  // Duration → fraction of a beat. Units = fraction × UNITS_PER_BEAT (× 1.5 dotted).
+  var BEAT_FRACTION = { "8": 0.5, q: 1, h: 2, w: 4, "8t": 1 / 3 };
   var DURATION_ORDER = ["w", "h", "q", "8"];
   var DURATION_LABELS = {
     "8": "Eighth", q: "Quarter", h: "Half", w: "Whole",
-    qd: "Dotted quarter", hd: "Dotted half",
+    qd: "Dotted quarter", hd: "Dotted half", "8t": "Triplet eighth",
   };
-  // Where a note of each duration may START, in eighth-units. Binary values align
-  // to their own length (a half only on units 0/4); DOTTED values align to the beat
-  // (2) — a dotted quarter is 3 units, so `% units` would wrongly forbid a beat-2
-  // start (4 % 3 ≠ 0). Only the dotted values quarter/half are offered (dotted
-  // eighth = 1.5 units would break the integer grid).
+  // Where a note of each duration may START, in grid units, on MELODIC cards (which
+  // are always UNITS_PER_BEAT === 2). Binary values align to their own length (a
+  // half only on units 0/4); DOTTED values align to the beat (2) — a dotted quarter
+  // is 3 units, so `% units` would wrongly forbid a beat-2 start (4 % 3 ≠ 0). Rhythm
+  // cards ignore this table (see durationAlign). Only quarter/half are dottable.
   var DURATION_ALIGN = { "8": 1, q: 2, h: 4, w: 8, qd: 2, hd: 2 };
   // Which base durations the dot modifier applies to (integer-unit only).
   var DOTTABLE = { q: true, h: true };
@@ -145,6 +151,7 @@
     mode: "note", // note | rest | erase
     duration: "q",
     dotted: false, // dot modifier (rhythm cards) — applies to quarter/half
+    triplet: false, // triplet tool (triplet cards) — one tap fills a beat with 3
     accidental: "", // "" (diatonic, follows key sig) | "#" | "b" | "n"
     events: [],
     history: [],
@@ -196,17 +203,31 @@
     return "ss-transcribe:" + melodyId();
   }
 
-  // Eighth-units for a duration, honouring a trailing "d" (dotted = 1.5x). "qd" → 3,
-  // "hd" → 6 (both integers); dotted eighth is never offered, so no fractions arise.
+  // Grid units for a duration at the current UNITS_PER_BEAT, honouring a trailing
+  // "d" (dotted = 1.5x). At the default grid (2): "8"→1, q→2, h→4, w→8, qd→3, hd→6
+  // — identical to before. At the triplet grid (6): "8"→3, q→6, "8t"→2 (a triplet
+  // eighth), all integers. Math.round guards the 1/3 float.
   function durationUnits(duration) {
     var s = String(duration || "");
     var dotted = s.charAt(s.length - 1) === "d";
-    var base = DURATION_UNITS[dotted ? s.slice(0, -1) : s] || 0;
-    return dotted ? base * 1.5 : base;
+    var frac = BEAT_FRACTION[dotted ? s.slice(0, -1) : s];
+    if (frac === undefined) return 0;
+    return Math.round(frac * UNITS_PER_BEAT * (dotted ? 1.5 : 1) * 1e6) / 1e6;
   }
 
-  // Start-position granularity for a duration (see DURATION_ALIGN).
+  // Start-position granularity for a duration (see DURATION_ALIGN). Rhythm cards
+  // relax to the EIGHTH grid (UNITS_PER_BEAT / 2) so syncopation is enterable — an
+  // offbeat quarter starts on an off-beat eighth and, by sounded rhythm, equals the
+  // two tied eighths the target draws; triplet notes come from the triplet tool, not
+  // free placement. Melodic cards keep beat/length alignment so placement stays
+  // snappy. A correct on-beat answer is unaffected either way.
   function durationAlign(duration) {
+    if (curGradeMode === "rhythm" || curGradeMode === "sounded") {
+      // Triplet eighths sit on the triplet subdivision (a third of a beat); every
+      // other value snaps to the eighth grid (offbeats allowed for syncopation).
+      if (String(duration) === "8t") return Math.max(1, UNITS_PER_BEAT / 3);
+      return Math.max(1, UNITS_PER_BEAT / 2);
+    }
     return DURATION_ALIGN[String(duration || "")] || 1;
   }
 
@@ -214,9 +235,13 @@
     var s = String(duration || "");
     return s.charAt(s.length - 1) === "d";
   }
+  // The bare VexFlow note value: strip a triplet marker ("8t" → "8", the tuplet
+  // bracket conveys the 3-in-2) then a dot ("qd" → "q").
   function baseDuration(duration) {
     var s = String(duration || "");
-    return isDotted(s) ? s.slice(0, -1) : s;
+    if (s.charAt(s.length - 1) === "t") s = s.slice(0, -1);
+    if (s.charAt(s.length - 1) === "d") s = s.slice(0, -1);
+    return s;
   }
   // Attach an augmentation dot to a VexFlow note (the API moved between versions).
   function addDot(note) {
@@ -272,6 +297,8 @@
     // Only carry an accidental when the note actually has one, so diatonic
     // (C-major / natural-minor) events serialize exactly as before.
     if (out.kind === "note" && event.acc) out.acc = String(event.acc);
+    // Carry the tuplet flag (triplet members) for the "3" bracket + round-trips.
+    if (out.kind === "note" && event.tuplet) out.tuplet = true;
     return out;
   }
 
@@ -393,13 +420,22 @@
     var out = [];
     for (var i = 0; i < data.events.length; i++) {
       var source = data.events[i];
-      var units = durationUnits(source.duration);
+      // The card encodes a triplet eighth as duration "8" + tuplet:true (the
+      // renderer's convention); the editor grid needs the distinct 2-unit value
+      // "8t", so translate on the way in. Any other tuplet base is left as-is.
+      var dur = String(source.duration);
+      if (source.tuplet === true && dur === "8") dur = "8t";
+      var units = durationUnits(dur);
       if (!units) return [];
       out.push({
         kind: source.kind === "rest" ? "rest" : "note",
         pitch: source.kind === "rest" ? null : source.pitch,
-        duration: String(source.duration),
+        duration: dur,
         startUnit: cursor,
+        // Preserve tie/tuplet so the target's sounded-rhythm grid is correct: a tie
+        // suppresses the tied-into note's onset (syncopation reads as one attack).
+        tie: source.tie === true,
+        tuplet: source.tuplet === true,
       });
       cursor += units;
     }
@@ -419,7 +455,8 @@
       total += durationUnits(events[i].duration);
     }
     if (total <= 0) return BAR_UNITS;
-    if (total % 2 === 1) total += 1; // keep a whole number of beats
+    var rem = total % UNITS_PER_BEAT;
+    if (rem !== 0) total += UNITS_PER_BEAT - rem; // pad up to a whole beat
     return total;
   }
 
@@ -433,6 +470,16 @@
   // editor covers the melody (any octave, treble or bass) rather than a fixed
   // treble C4–C5.
   function applyPitchContext(data) {
+    // Grid resolution FIRST — everything below (targetEventsFromData, buildPitches,
+    // capacity) goes through durationUnits, which depends on UNITS_PER_BEAT. Use the
+    // sextuplet grid only when the target actually contains triplets.
+    var hasTriplet =
+      !!(data && Array.isArray(data.events)) &&
+      data.events.some(function (e) {
+        return e && e.tuplet === true;
+      });
+    UNITS_PER_BEAT = hasTriplet ? 6 : 2;
+    BAR_UNITS = 4 * UNITS_PER_BEAT;
     clef = String((data && data.clef) || "treble");
     curKey = String((data && data.key) || "C");
     curMode = String((data && data.mode) || "major");
@@ -450,7 +497,12 @@
    * is one attack then (units-1) helds; a rest/gap is silence. So a half-rest and
    * two quarter-rests reduce identically, while q+q (two attacks) stays distinct
    * from a held half. Pitch is ignored (rhythm cards are notated on any one line).
-   * `ev.tie === true` suppresses a note's onset so a tie merges into the previous.
+   *
+   * Ties: a note with `tie === true` is tied INTO the following note, so it is the
+   * *next* note's onset that is suppressed (the pair sounds as one attack held
+   * across both) — an offbeat quarter written as two tied eighths reduces to the
+   * same grid as the quarter itself. (Earlier this suppressed the tie-flagged
+   * note's own onset, which put the attack on the wrong unit for syncopation.)
    */
   function soundedRhythm(events, totalUnits) {
     var evs = (events || []).slice().sort(function (a, b) {
@@ -468,10 +520,15 @@
       var e = evs[j];
       var units = durationUnits(e.duration);
       if (!units || e.kind === "rest") continue;
-      var tied = e.tie === true;
+      var prev = j > 0 ? evs[j - 1] : null;
+      var tiedInto =
+        !!prev &&
+        prev.kind === "note" &&
+        prev.tie === true &&
+        prev.startUnit + durationUnits(prev.duration) === e.startUnit;
       for (var k = 0; k < units; k++) {
         var pos = e.startUnit + k;
-        if (pos >= 0 && pos < length) grid[pos] = k === 0 && !tied ? 1 : 2;
+        if (pos >= 0 && pos < length) grid[pos] = k === 0 && !tiedInto ? 1 : 2;
       }
     }
     return grid;
@@ -516,11 +573,18 @@
         // Bake any explicit accidental into the pitch string; the renderer reads
         // accidentals from the string and draws a glyph where it deviates from the
         // key signature (a bare letter in a sharp/flat key -> ♮).
-        return {
+        var out = {
           kind: "note",
           pitch: pitchWithAcc(event),
           duration: event.duration,
         };
+        // Translate the editor's internal triplet eighth ("8t") back to the
+        // renderer's convention: an eighth flagged tuplet (it draws the "3").
+        if (event.duration === "8t") {
+          out.duration = "8";
+          out.tuplet = true;
+        }
+        return out;
       }),
     };
   }
@@ -680,6 +744,21 @@
       dotBtn.setAttribute("aria-label", "dotted note");
       durbar.appendChild(dotBtn);
     }
+    // Triplet tool — only on triplet cards (target contains triplets ⇒ the
+    // sextuplet grid). One tap fills the pointed-at beat with three equal notes.
+    if (UNITS_PER_BEAT === 6) {
+      var tripBtn = buildButton(
+        "transcribe-triplet",
+        "ss-btn ss-btn-duration ss-btn-triplet",
+        '<span class="ss-dot-glyph" aria-hidden="true">♪³</span>' +
+          '<span class="ss-btn-caption">Triplet</span>',
+        function () {
+          window.SightSingingTranscriptionToggleTriplet();
+        }
+      );
+      tripBtn.setAttribute("aria-label", "triplet");
+      durbar.appendChild(tripBtn);
+    }
     ui.appendChild(durbar);
 
     var tools = document.createElement("div");
@@ -766,7 +845,7 @@
     var beatbar = document.createElement("div");
     beatbar.className = "ss-beatbar";
     beatbar.id = "transcribe-beatbar";
-    var nbeats = Math.max(1, Math.ceil(capacity / 2));
+    var nbeats = Math.max(1, Math.ceil(capacity / UNITS_PER_BEAT));
     for (var b = 0; b < nbeats; b++) {
       var beat = document.createElement("div");
       beat.className = "ss-beat";
@@ -820,12 +899,19 @@
     var dotBtn = document.getElementById("transcribe-dot");
     if (dotBtn) {
       // Active when the dot is on; dimmed when the current base can't take a dot
-      // (eighth/whole) — a no-op there.
-      var dottable = !!DOTTABLE[state.duration];
+      // (eighth/whole) — a no-op there, and while the triplet tool is engaged.
+      var dottable = !!DOTTABLE[state.duration] && !state.triplet;
       dotBtn.className =
         "ss-btn ss-btn-duration ss-btn-dot" +
         (state.dotted && dottable ? " ss-tool-active" : "") +
         (dottable ? "" : " ss-btn-dot-disabled");
+    }
+
+    var tripBtn = document.getElementById("transcribe-triplet");
+    if (tripBtn) {
+      tripBtn.className =
+        "ss-btn ss-btn-duration ss-btn-triplet" +
+        (state.triplet && state.mode === "note" ? " ss-tool-active" : "");
     }
 
     var accbar = document.getElementById("transcribe-accbar");
@@ -857,17 +943,18 @@
   /* ---- status + beat bar --------------------------------------------------------- */
 
   function beatsLabel(units) {
-    var whole = Math.floor(units / 2);
-    var half = units % 2 === 1;
-    if (whole === 0 && half) return "½";
-    return String(whole) + (half ? "½" : "");
+    var whole = Math.floor(units / UNITS_PER_BEAT);
+    var rem = units % UNITS_PER_BEAT;
+    var frac = rem === 0 ? "" : rem * 2 === UNITS_PER_BEAT ? "½" : "+";
+    if (whole === 0 && frac) return frac;
+    return String(whole) + frac;
   }
 
   function updateStatus() {
     var el = document.getElementById("transcribe-status");
     var used = usedUnits();
 
-    var nbeats = Math.max(1, Math.ceil(capacity / 2));
+    var nbeats = Math.max(1, Math.ceil(capacity / UNITS_PER_BEAT));
     if (el) {
       if (!state.events.length) {
         el.innerHTML = "Listen, then tap the staff to enter what you hear.";
@@ -896,8 +983,11 @@
       var occupied = occupiedUnits(state.events);
       var fills = beatbar.getElementsByClassName("ss-beat-fill");
       for (var b = 0; b < fills.length && b < nbeats; b++) {
-        var count = (occupied[b * 2] ? 1 : 0) + (occupied[b * 2 + 1] ? 1 : 0);
-        fills[b].style.width = count * 50 + "%";
+        var filled = 0;
+        for (var u = b * UNITS_PER_BEAT; u < (b + 1) * UNITS_PER_BEAT; u++) {
+          if (occupied[u]) filled += 1;
+        }
+        fills[b].style.width = (filled / UNITS_PER_BEAT) * 100 + "%";
       }
     }
   }
@@ -987,7 +1077,7 @@
     // Give longer phrases more room: ~46px per beat plus clef/time margins,
     // but never below the historical single-bar width and capped so a wide
     // card doesn't stretch a short melody. A 4-beat melody stays ≈260–560px.
-    var perBeat = Math.max(1, Math.ceil(capacity / 2)) * 46;
+    var perBeat = Math.max(1, Math.ceil(capacity / UNITS_PER_BEAT)) * 46;
     var wanted = Math.max(measured, 110 + perBeat);
     var width = Math.max(260, Math.min(720, wanted));
 
@@ -1086,11 +1176,14 @@
       notes.push(note);
     }
 
-    /* Beam adjacent placed eighth notes inside the same beat. */
+    /* Beam duple eighth pairs within one beat; group triplet members (tuplet flag)
+       into a 3-in-2 Tuplet with its own beam. */
     var beams = [];
     var beamRecords = [];
+    var tuplets = [];
     var group = [];
     var groupIdx = [];
+    var groupBeat = -1;
     function flushBeam() {
       if (group.length >= 2) {
         try {
@@ -1103,28 +1196,47 @@
       }
       group = [];
       groupIdx = [];
+      groupBeat = -1;
+    }
+    var tGroup = [];
+    function flushTuplet() {
+      if (tGroup.length) {
+        try {
+          tuplets.push(new VF.Tuplet(tGroup, { num_notes: 3, notes_occupied: 2 }));
+          if (tGroup.length >= 2) beams.push(new VF.Beam(tGroup));
+        } catch (e) {}
+      }
+      tGroup = [];
     }
     for (var s = 0; s < slots.length; s++) {
       var sl = slots[s];
-      var isPlacedEighthNote =
-        sl.kind === "event" &&
-        sl.event.kind === "note" &&
-        sl.event.duration === "8";
-      if (isPlacedEighthNote) {
-        if (sl.startUnit % 2 === 0) flushBeam();
+      var isNote = sl.kind === "event" && sl.event.kind === "note";
+      if (isNote && sl.event.tuplet) {
+        flushBeam();
+        tGroup.push(sl.note);
+        if (tGroup.length === 3) flushTuplet();
+      } else if (isNote && sl.event.duration === "8") {
+        flushTuplet();
+        var beat = Math.floor(sl.startUnit / UNITS_PER_BEAT);
+        if (group.length && beat !== groupBeat) flushBeam();
         group.push(sl.note);
         groupIdx.push(sl.eventIndex);
-        if ((sl.startUnit + 1) % 2 === 0) flushBeam();
+        groupBeat = beat;
       } else {
+        flushTuplet();
         flushBeam();
       }
     }
+    flushTuplet();
     flushBeam();
 
     try {
       VF.Formatter.FormatAndDraw(ctx, stave, notes);
       for (var b = 0; b < beams.length; b++) {
         beams[b].setContext(ctx).draw();
+      }
+      for (var tpl = 0; tpl < tuplets.length; tpl++) {
+        tuplets[tpl].setContext(ctx).draw();
       }
     } catch (err) {
       els.score.innerHTML =
@@ -1283,6 +1395,38 @@
     }
 
     /*
+     * Triplet tool: one tap fills the pointed-at BEAT with three equal notes
+     * (tuplet eighths). Only offered on triplet cards (UNITS_PER_BEAT === 6), where
+     * a third of a beat is an integer 2 units, so the three notes land on integer
+     * grid positions beat+0/+2/+4.
+     */
+    if (state.mode === "note" && state.triplet && UNITS_PER_BEAT === 6) {
+      var pu = (x - geo.gridLeft) / geo.unitPx;
+      var beatStart = Math.floor(pu / UNITS_PER_BEAT) * UNITS_PER_BEAT;
+      if (beatStart < 0) beatStart = 0;
+      if (beatStart + UNITS_PER_BEAT > capacity) {
+        beatStart = capacity - UNITS_PER_BEAT;
+      }
+      if (beatStart < 0) return null;
+      var tReplaces = [];
+      for (var ti = 0; ti < state.events.length; ti++) {
+        var te = state.events[ti];
+        if (te.startUnit < beatStart + UNITS_PER_BEAT && eventEndUnit(te) > beatStart) {
+          tReplaces.push(ti);
+        }
+      }
+      var tg = {
+        type: "triplet",
+        startUnit: beatStart,
+        units: UNITS_PER_BEAT,
+        replaces: tReplaces,
+      };
+      tg.pitchIndex = pitchIndexFromY(y);
+      tg.pitch = PITCHES[tg.pitchIndex];
+      return tg;
+    }
+
+    /*
      * Placement snaps to the uniform-grid tile the pointer is over, so
      * the selection flips exactly when the pointer crosses the visible
      * edge of the highlight box. Painting over existing events replaces
@@ -1415,6 +1559,58 @@
           ? "Remove " + DURATION_LABELS[target.duration].toLowerCase() + " rest"
           : "Remove " + target.pitch;
       showGhostLabel(labelText, (ex0 + ex1) / 2, geo.staveTopY - 24, "erase");
+      return;
+    }
+
+    /* triplet placement ghost: a box over the beat + three noteheads + a "3". */
+    if (ghost.type === "triplet") {
+      if (ghost.replaces && ghost.replaces.length) setDoomed(ghost.replaces);
+      var tSpanX = gridX(ghost.startUnit);
+      var tSpanW = ghost.units * geo.unitPx;
+      svgEl(
+        "rect",
+        {
+          x: tSpanX, y: geo.staveTopY - 18, width: tSpanW,
+          height: geo.staveBottomY - geo.staveTopY + 44, rx: 9,
+          fill: accent, "fill-opacity": 0.1, stroke: accent,
+          "stroke-opacity": 0.45, "stroke-width": 1.4, "stroke-dasharray": "4 3",
+          "data-ss": "ghost-span",
+        },
+        overlay
+      );
+      var tNoteY = yForPitchIndex(ghost.pitchIndex);
+      var third = tSpanW / 3;
+      for (var tn = 0; tn < 3; tn++) {
+        var tcx = tSpanX + third * (tn + 0.5);
+        svgEl(
+          "ellipse",
+          {
+            cx: tcx, cy: tNoteY, rx: 5.2, ry: 3.9, fill: accent,
+            "fill-opacity": 0.85,
+            transform: "rotate(-16 " + tcx + " " + tNoteY + ")",
+          },
+          overlay
+        );
+        svgEl(
+          "rect",
+          {
+            x: tcx + 4, y: tNoteY - 28, width: 1.6, height: 28, rx: 0.8,
+            fill: accent, "fill-opacity": 0.85,
+          },
+          overlay
+        );
+      }
+      var tri3 = svgEl(
+        "text",
+        {
+          x: tSpanX + tSpanW / 2, y: geo.staveTopY - 2, "font-size": 12,
+          "font-weight": 700, "font-style": "italic", "text-anchor": "middle",
+          fill: accent, "fill-opacity": 0.9,
+        },
+        overlay
+      );
+      tri3.textContent = "3";
+      showGhostLabel("Triplet", tSpanX + tSpanW / 2, geo.staveTopY - 24, null);
       return;
     }
 
@@ -1709,6 +1905,31 @@
       renderAll();
       return;
     }
+    if (ghost.type === "triplet") {
+      pushHistory();
+      if (ghost.replaces && ghost.replaces.length) {
+        for (var tr = ghost.replaces.length - 1; tr >= 0; tr--) {
+          state.events.splice(ghost.replaces[tr], 1);
+        }
+      }
+      // Three tuplet eighths filling the beat (units beat+0/+2/+4 at UPB 6). The
+      // tuplet flag drives the engraved "3" bracket; sounded-rhythm grading just
+      // sees three onsets a third of a beat apart.
+      var third = UNITS_PER_BEAT / 3;
+      for (var n = 0; n < 3; n++) {
+        state.events.push({
+          kind: "note",
+          pitch: ghost.pitch,
+          duration: "8t",
+          startUnit: ghost.startUnit + n * third,
+          tuplet: true,
+        });
+      }
+      sortEvents();
+      saveEvents();
+      renderAll();
+      return;
+    }
     if (ghost.type === "erase") {
       pushHistory();
       state.events.splice(ghost.eventIndex, 1);
@@ -1744,8 +1965,8 @@
     var legendEl = document.getElementById("transcribe-legend");
     if (!resultEl || !targetEl) return;
 
+    applyPitchContext(data); // sets UNITS_PER_BEAT — must precede capacityForData
     capacity = capacityForData(data);
-    applyPitchContext(data);
 
     if (!supportedData(data)) {
       resultEl.className = "ss-verdict ss-verdict-none";
@@ -1836,14 +2057,15 @@
     if (!editor) return;
 
     var data = parseData();
+    applyPitchContext(data); // sets UNITS_PER_BEAT — must precede capacityForData
     capacity = capacityForData(data);
-    applyPitchContext(data);
     clearSavedEvents();
     state.events = [];
     state.history = [];
     state.mode = "note";
     state.duration = "q";
     state.dotted = false;
+    state.triplet = false;
     state.accidental = "";
 
     if (!supportedData(data)) {
@@ -1940,8 +2162,25 @@
 
   window.SightSingingTranscriptionToggleDot = function () {
     state.dotted = !state.dotted;
-    // Dots apply to placed notes/rests; make sure we're not in erase mode.
-    if (state.dotted && state.mode === "erase") state.mode = "note";
+    // Dots apply to placed notes; the dot and the triplet tool are mutually
+    // exclusive. Make sure we're placing notes.
+    if (state.dotted) {
+      state.triplet = false;
+      if (state.mode === "erase") state.mode = "note";
+    }
+    hover = null;
+    renderAll();
+    return false;
+  };
+
+  window.SightSingingTranscriptionToggleTriplet = function () {
+    state.triplet = !state.triplet;
+    // The triplet tool places three notes at once; it owns note placement while on,
+    // so clear the dot and switch to note mode.
+    if (state.triplet) {
+      state.dotted = false;
+      state.mode = "note";
+    }
     hover = null;
     renderAll();
     return false;
@@ -1988,8 +2227,8 @@
     var data = parseData();
     // Size the grid + pitch window before loading the saved answer: a multi-bar
     // or out-of-treble-octave answer would otherwise be filtered out.
+    applyPitchContext(data); // sets UNITS_PER_BEAT — must precede capacityForData
     capacity = capacityForData(data);
-    applyPitchContext(data);
     state.events = loadSavedEvents();
     renderSummary(data);
   };
@@ -2001,6 +2240,8 @@
         mode: state.mode,
         duration: state.duration,
         dotted: state.dotted,
+        triplet: state.triplet,
+        unitsPerBeat: UNITS_PER_BEAT,
         accidental: state.accidental,
         events: state.events.map(cloneEvent),
         historyDepth: state.history.length,

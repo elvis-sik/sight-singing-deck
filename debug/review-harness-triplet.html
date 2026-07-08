@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Triplet Review Harness (R8)</title>
+    <link rel="stylesheet" href="../assets/card_styles.css" />
+    <link rel="stylesheet" href="harness.css" />
+  </head>
+  <body class="card">
+    <button type="button" class="ss-btn harness-night-toggle" id="night-toggle">Night mode</button>
+    <p class="harness-title">Triplet dictation · back (review)</p>
+
+    <script>
+      window.sightSingingMelodyId = "debug_review_triplet";
+      // Target: three quarters then a beat-4 triplet. The card encodes the triplet
+      // as three eighths flagged tuplet; the editor runs on the sextuplet grid
+      // (6 units/beat), so the seeded answer places the triplet as three "8t" notes
+      // (2 units each) at units 18/20/22. Sounded-rhythm grading must call it perfect.
+      try {
+        localStorage.setItem(
+          "ss-transcribe:debug_review_triplet",
+          JSON.stringify([
+            { kind: "note", pitch: "B4", duration: "q", startUnit: 0 },
+            { kind: "note", pitch: "B4", duration: "q", startUnit: 6 },
+            { kind: "note", pitch: "B4", duration: "q", startUnit: 12 },
+            { kind: "note", pitch: "B4", duration: "8t", startUnit: 18, tuplet: true },
+            { kind: "note", pitch: "B4", duration: "8t", startUnit: 20, tuplet: true },
+            { kind: "note", pitch: "B4", duration: "8t", startUnit: 22, tuplet: true }
+          ])
+        );
+      } catch (e) {}
+    </script>
+
+    <div id="back" style="display:none;"></div>
+
+    <div class="ss-wrap">
+      <div id="melody-data" style="display:none;">
+        {"version":2,"clef":"treble","key":"C","mode":"major","keySig":"C","keyAccidentals":{"C":0,"D":0,"E":0,"F":0,"G":0,"A":0,"B":0},"timeSig":"4/4","gradeMode":"rhythm","notes":["B4","B4","B4","B4","B4","B4"],"durations":["q","q","q","8t","8t","8t"],"bars":[{"events":[{"kind":"note","duration":"q","pitch":"B4"},{"kind":"note","duration":"q","pitch":"B4"},{"kind":"note","duration":"q","pitch":"B4"},{"kind":"note","duration":"8","tuplet":true,"pitch":"B4"},{"kind":"note","duration":"8","tuplet":true,"pitch":"B4"},{"kind":"note","duration":"8","tuplet":true,"pitch":"B4"}]}],"degrees":[]}
+      </div>
+      <div class="ss-meta" id="melody-meta" data-ss-badge="Rhythm"></div>
+      <div id="transcribe-result" class="ss-verdict ss-verdict-none"></div>
+      <div id="transcribe-user-block">
+        <div class="ss-compare-label">Your transcription</div>
+        <div class="ss-panel">
+          <div id="transcribe-user" class="ss-notation"></div>
+        </div>
+        <div id="transcribe-legend" class="ss-legend">
+          <span class="ss-legend-dot ss-legend-dot-good"></span>matches
+          <span class="ss-legend-dot ss-legend-dot-bad"></span>different
+        </div>
+      </div>
+      <div class="ss-compare-label">Target rhythm</div>
+      <div class="ss-panel">
+        <div id="transcribe-target" class="ss-notation"></div>
+      </div>
+    </div>
+
+    <script src="../assets/_vexflow.js"></script>
+    <script src="../assets/_renderer.js"></script>
+    <script src="../assets/_transcription.js"></script>
+    <script>
+      window.SightSingingTranscriptionReview();
+      document.getElementById("night-toggle").addEventListener("click", function () {
+        document.body.classList.toggle("nightMode");
+        document.body.classList.toggle("night_mode");
+        if (window.SightSingingRedraw) window.SightSingingRedraw();
+        window.SightSingingTranscriptionReview();
+      });
+    </script>
+  </body>
+</html>
