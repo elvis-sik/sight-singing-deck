@@ -601,3 +601,126 @@ test("rhythm dictation grades by sounded rhythm (rest spelling + pitch agnostic)
   );
   expect(parsedMode).toBe("rhythm");
 });
+
+test("compound 6/8 card runs on the dotted-quarter grid and hides the triplet tool", async ({
+  page,
+}) => {
+  await page.goto("/debug/transcription-harness-compound.html");
+  await page.waitForSelector(".ss-editor-overlay");
+
+  const st = await debugState(page);
+  // The beat is a dotted quarter: 6 units/beat, an eighth is 2 units, two beats
+  // per 6/8 bar (12 units). This is the "compound" grid, distinct from the
+  // triplet grid that ALSO uses 6 units/beat.
+  expect(st.gridKind).toBe("compound");
+  expect(st.timeSig).toBe("6/8");
+  expect(st.unitsPerBeat).toBe(6);
+  expect(st.eighthUnits).toBe(2);
+  expect(st.beatsPerBar).toBe(2);
+  expect(st.barUnits).toBe(12);
+
+  // Rhythm card ⇒ the dot modifier is offered (the dotted quarter is the beat).
+  await expect(page.locator("#transcribe-dot")).toHaveCount(1);
+  // But NOT the triplet tool: compound thirds-of-a-beat are plain eighths, not
+  // tuplets, even though the grid shares 6 units/beat with triplet cards.
+  await expect(page.locator("#transcribe-triplet")).toHaveCount(0);
+  // Two beat cells (two dotted-quarter beats), not four.
+  await expect(page.locator("#transcribe-beatbar .ss-beat")).toHaveCount(2);
+});
+
+test("a compound bar is enterable: a dotted quarter then three eighths", async ({
+  page,
+}) => {
+  await page.goto("/debug/transcription-harness-compound.html");
+  await page.waitForSelector(".ss-editor-overlay");
+
+  // Beat 2: three eighths on the 2-unit eighth grid (units 6, 8, 10).
+  await page.locator("#transcribe-duration-8").click();
+  await tapStaff(page, 6, "B4");
+  await tapStaff(page, 8, "B4");
+  await tapStaff(page, 10, "B4");
+  // Beat 1: a dotted quarter (quarter + dot) filling units 0–5.
+  await page.locator("#transcribe-duration-q").click();
+  await page.locator("#transcribe-dot").click();
+  await tapStaff(page, 0, "B4");
+
+  const state = await debugState(page);
+  expect(state.events).toEqual([
+    { kind: "note", pitch: "B4", duration: "qd", startUnit: 0 },
+    { kind: "note", pitch: "B4", duration: "8", startUnit: 6 },
+    { kind: "note", pitch: "B4", duration: "8", startUnit: 8 },
+    { kind: "note", pitch: "B4", duration: "8", startUnit: 10 },
+  ]);
+});
+
+test("compound 6/8 grades perfect and engraves as a single 6/8 measure", async ({
+  page,
+}) => {
+  // Target: a dotted quarter (beat 1) then three eighths (beat 2), one 6/8 bar.
+  await page.goto("/debug/review-harness-compound.html");
+  await page.waitForSelector("#transcribe-target svg");
+  await expect(page.locator("#transcribe-result")).toContainText(
+    "Perfect — the rhythm matches"
+  );
+
+  // A 6/8 bar is exactly six eighths, so it engraves as ONE measure: no interior
+  // barline, no padding rest. measureUnits("6/8") = 6 drives the split.
+  const barnotes = await page.evaluate(
+    () => document.querySelectorAll("#transcribe-target svg .vf-barnote").length
+  );
+  expect(barnotes).toBe(0);
+
+  // Spelling the two beats as SIX eighths (duple grouping) still sounds the same
+  // rhythm — but crossing the dotted-quarter beat would; a wrong beat count is
+  // caught by re-entering beat 1 as three eighths shifted. Here, replacing the
+  // dotted quarter with an eighth + eighth-rest changes the sounded rhythm.
+  await page.evaluate(() => {
+    localStorage.setItem(
+      "ss-transcribe:debug_review_compound",
+      JSON.stringify([
+        { kind: "note", pitch: "B4", duration: "8", startUnit: 0 },
+        { kind: "rest", duration: "8", startUnit: 2 },
+        { kind: "note", pitch: "B4", duration: "8", startUnit: 4 },
+        { kind: "note", pitch: "B4", duration: "8", startUnit: 6 },
+        { kind: "note", pitch: "B4", duration: "8", startUnit: 8 },
+        { kind: "note", pitch: "B4", duration: "8", startUnit: 10 },
+      ])
+    );
+    window.SightSingingTranscriptionReview();
+  });
+  await expect(page.locator("#transcribe-result")).not.toContainText("Perfect");
+});
+
+test("compound eighths beam in threes (per dotted-quarter beat), not twos", async ({
+  page,
+}) => {
+  await page.goto("/debug/review-harness-compound.html");
+  await page.waitForSelector("#transcribe-target svg");
+
+  // Render a full bar of six eighths in each meter and count beam groups. 6/8
+  // beams per dotted quarter → two groups of three; 4/4 beams per quarter →
+  // three groups of two. This guards the meter-aware beat boundary in beamGroups.
+  const counts = await page.evaluate(() => {
+    function sixEighths(ts) {
+      return {
+        version: 2, clef: "treble", keySig: "C", keyAccidentals: {}, timeSig: ts,
+        events: [0, 0, 0, 0, 0, 0].map(() => ({
+          kind: "note", pitch: "B4", duration: "8",
+        })),
+      };
+    }
+    function beams(ts) {
+      const d = document.createElement("div");
+      d.style.position = "absolute";
+      d.style.left = "-9999px";
+      document.body.appendChild(d);
+      window.SightSingingDrawStaff(d, sixEighths(ts));
+      const n = d.querySelectorAll("svg .vf-beam").length;
+      d.remove();
+      return n;
+    }
+    return { compound: beams("6/8"), simple: beams("4/4") };
+  });
+  expect(counts.compound).toBe(2);
+  expect(counts.simple).toBe(3);
+});

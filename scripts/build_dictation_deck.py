@@ -79,7 +79,8 @@ _TRACK_DESCS = {
     "3 · Intervals": "Hear one interval, notate it — dip in to reinforce a leap.",
     "4 · Bass Clef::C major": "The dictation ladder read/notated on the bass staff.",
     "4 · Bass Clef::A minor": "Bass-clef dictation in A minor. After treble is fluent.",
-    "5 · Rhythm": "Hear a one-bar rhythm on one pitch; notate the rhythm (timing only).",
+    "5 · Rhythm": "Hear a one-bar rhythm on one pitch; notate the rhythm (timing "
+    "only). R1-R9 in 4/4, then RC1-RC3 in compound 6/8 (beat = dotted quarter).",
     "6 · Other Keys::G major": "The same material in G major — read the F♯ in the key "
     "signature (tap the F line; it sounds F♯).",
     "6 · Other Keys::F major": "The same material in F major — read the B♭ in the key "
@@ -165,12 +166,17 @@ TRACKS: list[DictTrack] = [
     # (graded by sounded rhythm, pitch-agnostic). The full ladder R1-R9: pulse/rests/
     # eighth-pairs/mixed/offbeat, dotted (dot modifier), syncopation (offbeat quarters
     # ≡ tied eighths), triplets (triplet tool on the sextuplet grid), and a mixed
-    # capstone.
+    # capstone — then RC1-RC3, the compound-meter (6/8) coda: dotted-quarter beats,
+    # three-eighth divisions, long–short/short–long figures, and beat rests, all on
+    # the compound grid (eighth = a third of the beat, beamed in threes).
     DictTrack(
         "5 · Rhythm", "dictation_rhythm", "C", "major", "treble",
         "", "", (), [], DICT_DECK_BASE + 160,
         kind="rhythm",
-        rhythm_ids=("R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9"),
+        rhythm_ids=(
+            "R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9",
+            "RC1", "RC2", "RC3",
+        ),
     ),
     DictTrack(
         "6 · Other Keys::G major", "dictation_key_g", "G", "major", "treble",

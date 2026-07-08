@@ -82,7 +82,7 @@ def melody_to_card_fields(melody: dict[str, Any]) -> dict[str, str]:
         "mode": mode,
         "keySig": key_sig,
         "keyAccidentals": key_accidentals,
-        "timeSig": "4/4",
+        "timeSig": str(melody.get("time_sig", "4/4")),
         "notes": notes,
         "durations": durations,
         "bars": [{"events": events}],

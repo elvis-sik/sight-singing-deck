@@ -280,7 +280,7 @@ def build_rhythm_library(
                 if item.get("kind") != "rest":
                     item["pitch"] = pitch
                 render_events.append(item)
-            blob = f"{stage.id}:{clef}:" + "|".join(
+            blob = f"{stage.id}:{clef}:{stage.time_sig}:" + "|".join(
                 f"{e.get('duration')}{'t' if e.get('tie') else ''}"
                 f"{'T' if e.get('tuplet') else ''}"
                 for e in render_events
@@ -294,6 +294,7 @@ def build_rhythm_library(
                     "notes": notes,
                     "durations": durations,
                     "render_events": render_events,
+                    "time_sig": stage.time_sig,  # 4/4 for R1-R9, 6/8 for compound
                     "degrees": [],  # rhythm cards have no scale-degree chips
                     "clef": clef,
                     "key": "C",

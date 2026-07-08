@@ -210,5 +210,81 @@ class IntervalDictationTest(unittest.TestCase):
                     )
 
 
+class CompoundRhythmTest(unittest.TestCase):
+    """The 6/8 compound-meter rhythm stages (RC1-RC3).
+
+    A compound beat is a dotted quarter (three eighths). A 6/8 bar is two beats
+    = six eighths. Cells stay inside a beat, so the notation view equals the
+    audio view (no ties, no tuplets).
+    """
+
+    # Eighth-note length of each duration token used by the compound cells.
+    _EIGHTHS = {"qd": 3, "q": 2, "8": 1}
+
+    @property
+    def _stages(self):
+        from sight_singing.generate.rhythm import RHYTHM_STAGES_BY_ID
+
+        return [RHYTHM_STAGES_BY_ID[s] for s in ("RC1", "RC2", "RC3")]
+
+    def test_every_stage_yields(self) -> None:
+        from sight_singing.generate.rhythm import generate_rhythm_stage
+
+        for stage in self._stages:
+            with self.subTest(stage=stage.id):
+                bars = generate_rhythm_stage(stage)
+                self.assertGreaterEqual(len(bars), 6, f"{stage.id} yielded too few")
+                self.assertEqual(stage.time_sig, "6/8")
+
+    def test_every_bar_is_exactly_two_compound_beats(self) -> None:
+        from sight_singing.generate.rhythm import generate_rhythm_stage
+
+        for stage in self._stages:
+            for bar in generate_rhythm_stage(stage):
+                total = sum(self._EIGHTHS[d] for d, _rest in bar["audio"])
+                with self.subTest(stage=stage.id, audio=bar["audio"]):
+                    self.assertEqual(total, 6, "a 6/8 bar must be six eighths")
+
+    def test_notation_view_equals_audio_view(self) -> None:
+        # Compound figures never cross a beat, so there is nothing to tie or
+        # bracket: render is a plain note/rest per audio event.
+        from sight_singing.generate.rhythm import generate_rhythm_stage
+
+        for stage in self._stages:
+            for bar in generate_rhythm_stage(stage):
+                expected = [
+                    {"kind": "rest" if rest else "note", "duration": d}
+                    for d, rest in bar["audio"]
+                ]
+                with self.subTest(stage=stage.id, audio=bar["audio"]):
+                    self.assertEqual(bar["render"], expected)
+                    for e in bar["render"]:
+                        self.assertNotIn("tie", e)
+                        self.assertNotIn("tuplet", e)
+
+    def test_every_bar_has_at_least_one_attack(self) -> None:
+        from sight_singing.generate.rhythm import generate_rhythm_stage
+
+        for stage in self._stages:
+            for bar in generate_rhythm_stage(stage):
+                with self.subTest(stage=stage.id, audio=bar["audio"]):
+                    self.assertTrue(
+                        any(not rest for _d, rest in bar["audio"]),
+                        "a silent bar carries no rhythm to notate",
+                    )
+
+    def test_rest_stage_actually_uses_rests(self) -> None:
+        from sight_singing.generate.rhythm import (
+            RHYTHM_STAGES_BY_ID,
+            generate_rhythm_stage,
+        )
+
+        bars = generate_rhythm_stage(RHYTHM_STAGES_BY_ID["RC3"])
+        self.assertTrue(
+            all(any(rest for _d, rest in bar["audio"]) for bar in bars),
+            "RC3 is the rest stage — every bar should contain a rest",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
