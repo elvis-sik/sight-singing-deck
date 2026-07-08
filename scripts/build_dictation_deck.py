@@ -67,6 +67,8 @@ _TRACK_DESCS = {
     "1 · Major": "The core dictation ladder in C major. Start here, top to bottom.",
     "2 · Minor": "The same ladder in (la-based) A minor. After Major feels steady.",
     "3 · Intervals": "Hear one interval, notate it — dip in to reinforce a leap.",
+    "4 · Bass Clef::C major": "The dictation ladder read/notated on the bass staff.",
+    "4 · Bass Clef::A minor": "Bass-clef dictation in A minor. After treble is fluent.",
 }
 
 
@@ -96,7 +98,19 @@ class DictTrack:
     priming_singletons: tuple[tuple[int, ...], ...]
     stages: list[Stage]
     deck_id_base: int
+    per_stage: int | None = None  # cap melodies/stage (bounded transfer tracks)
 
+
+def _pick(stages: list[Stage], ids: tuple[str, ...]) -> list[Stage]:
+    by_id = {s.id: s for s in stages}
+    return [by_id[i] for i in ids if i in by_id]
+
+
+# Bounded bass-clef transfer: read/notate the same dictation material on the lower
+# staff. A curated spread (triad → steps → upper scale → thirds → 4ths/5ths →
+# capstone), capped per stage, in C major and A minor — not the whole ladder again.
+_BASS_MAJOR = _pick(DICTATION_STAGES, ("DD1", "DD3", "DD5", "DD6", "DD7", "DD9"))
+_BASS_MINOR = _pick(DICTATION_MINOR_STAGES, ("ND1", "ND3", "ND5", "ND6", "ND7", "ND9"))
 
 TRACKS: list[DictTrack] = [
     DictTrack(
@@ -112,6 +126,14 @@ TRACKS: list[DictTrack] = [
     DictTrack(
         "3 · Intervals", "dictation_intervals", "C", "major", "treble",
         "", "", (), DICTATION_INTERVAL_STAGES, DICT_DECK_BASE + 70,
+    ),
+    DictTrack(
+        "4 · Bass Clef::C major", "dictation_bass_c", "C", "major", "bass",
+        "", "", (), _BASS_MAJOR, DICT_DECK_BASE + 100, per_stage=6,
+    ),
+    DictTrack(
+        "4 · Bass Clef::A minor", "dictation_bass_a", "A", "natural_minor", "bass",
+        "", "", (), _BASS_MINOR, DICT_DECK_BASE + 130, per_stage=6,
     ),
 ]
 
@@ -145,7 +167,8 @@ def _track_records(track: DictTrack) -> list[tuple[str, dict[str, object]]]:
             records.append((track.priming_id, rec))
     for stage in track.stages:
         lib = build_library(
-            [stage], key_name=track.key_name, mode=track.mode, clef=track.clef
+            [stage], key_name=track.key_name, mode=track.mode, clef=track.clef,
+            per_stage=track.per_stage,
         )
         for rec in lib:
             records.append((stage.id, rec))
