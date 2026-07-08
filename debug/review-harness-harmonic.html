@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Harmonic-minor Review Harness (accidental grading)</title>
+    <link rel="stylesheet" href="../assets/card_styles.css" />
+    <link rel="stylesheet" href="harness.css" />
+  </head>
+  <body class="card">
+    <button type="button" class="ss-btn harness-night-toggle" id="night-toggle">Night mode</button>
+    <p class="harness-title">Harmonic-minor dictation · back (review)</p>
+
+    <script>
+      window.sightSingingMelodyId = "debug_review_harmonic";
+      // Target: E5 C5 B4 G#4 A4 in A harmonic minor (si = G#, spelled with an
+      // explicit sharp; the Am key signature has none). Seed the CORRECT answer:
+      // bare letters, with the raised 7 entered as G4 + acc "#". Grading compares
+      // effective chromatic pitch, so this must read as perfect.
+      try {
+        localStorage.setItem(
+          "ss-transcribe:debug_review_harmonic",
+          JSON.stringify([
+            { kind: "note", pitch: "E5", duration: "q", startUnit: 0 },
+            { kind: "note", pitch: "C5", duration: "q", startUnit: 2 },
+            { kind: "note", pitch: "B4", duration: "q", startUnit: 4 },
+            { kind: "note", pitch: "G4", duration: "q", startUnit: 6, acc: "#" },
+            { kind: "note", pitch: "A4", duration: "q", startUnit: 8 }
+          ])
+        );
+      } catch (e) {}
+    </script>
+
+    <div id="back" style="display:none;"></div>
+
+    <div class="ss-wrap">
+      <div id="melody-data" style="display:none;">
+        {"version":2,"clef":"treble","key":"A","mode":"harmonic_minor","keySig":"Am","keyAccidentals":{"A":0,"B":0,"C":0,"D":0,"E":0,"F":0,"G":0},"timeSig":"4/4","notes":["E5","C5","B4","G#4","A4"],"durations":["q","q","q","q","q"],"bars":[{"events":[{"kind":"note","pitch":"E5","duration":"q"},{"kind":"note","pitch":"C5","duration":"q"},{"kind":"note","pitch":"B4","duration":"q"},{"kind":"note","pitch":"G#4","duration":"q"},{"kind":"note","pitch":"A4","duration":"q"}]}],"degrees":[5,3,2,7,1]}
+      </div>
+      <div class="ss-meta" id="melody-meta" data-ss-badge="Dictation"></div>
+      <div id="transcribe-result" class="ss-verdict ss-verdict-none"></div>
+      <div id="transcribe-user-block">
+        <div class="ss-compare-label">Your transcription</div>
+        <div class="ss-panel">
+          <div id="transcribe-user" class="ss-notation"></div>
+        </div>
+        <div id="transcribe-legend" class="ss-legend">
+          <span class="ss-legend-dot ss-legend-dot-good"></span>matches
+          <span class="ss-legend-dot ss-legend-dot-bad"></span>different
+        </div>
+      </div>
+      <div class="ss-compare-label">Target melody</div>
+      <div class="ss-panel">
+        <div id="transcribe-target" class="ss-notation"></div>
+      </div>
+    </div>
+
+    <script src="../assets/_vexflow.js"></script>
+    <script src="../assets/_renderer.js"></script>
+    <script src="../assets/_transcription.js"></script>
+    <script>
+      window.SightSingingTranscriptionReview();
+      document.getElementById("night-toggle").addEventListener("click", function () {
+        document.body.classList.toggle("nightMode");
+        document.body.classList.toggle("night_mode");
+        if (window.SightSingingRedraw) window.SightSingingRedraw();
+        window.SightSingingTranscriptionReview();
+      });
+    </script>
+  </body>
+</html>

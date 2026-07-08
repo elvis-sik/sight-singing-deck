@@ -18,10 +18,64 @@
   var curMode = "major";
   var curTimeSig = "4/4";
   var curKeySig = "";
+  // Key-signature accidental per letter (e.g. G major -> {F:1}), from the target's
+  // keyAccidentals. A placed note with no explicit accidental inherits this, so in
+  // G major tapping the F line means F♯ without the student adding a glyph.
+  var curKeyAcc = {};
   // "rhythm"/"sounded" ⇒ grade by sounded rhythm (pitch-agnostic, rest-spelling
   // equivalent); "" ⇒ exact pitch+rhythm match (the melodic default).
   var curGradeMode = "";
   var LETTERS = "CDEFGAB";
+  var LETTER_SEMITONE = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+
+  // Modes whose melodies can carry a note spelled OUTSIDE the key signature, so
+  // the editor must offer accidental input. Harmonic minor's raised 7 (si) is the
+  // shipped case; melodic minor's raised 6/7 would join here.
+  function modeAllowsAccidentals(mode) {
+    return String(mode) === "harmonic_minor";
+  }
+
+  // Chromatic pitch number (octave*12 + semitone) for match grading. `accOverride`
+  // is the student's explicit accidental ("#"/"b"/"n", "" ⇒ none); when absent, an
+  // accidental spelled into `pitchStr` wins, else the key-signature default. Targets
+  // are fully spelled (e.g. "G#4"), so their string accidental is authoritative;
+  // the student places bare letters and carries the accidental separately.
+  function pitchChroma(pitchStr, accOverride, keyAcc) {
+    var m = String(pitchStr).match(/^([A-Ga-g])([#b]?)(-?\d+)$/);
+    if (!m) return null;
+    var letter = m[1].toUpperCase();
+    var oct = parseInt(m[3], 10);
+    var semis;
+    if (accOverride) {
+      semis = accOverride === "#" ? 1 : accOverride === "b" ? -1 : 0;
+    } else if (m[2]) {
+      semis = m[2] === "#" ? 1 : -1;
+    } else {
+      semis = (keyAcc && keyAcc[letter]) || 0;
+    }
+    return oct * 12 + LETTER_SEMITONE[letter] + semis;
+  }
+
+  // A note's placeable pitch string fully SPELLED for the back-side renderer (which
+  // reads accidentals from the pitch string and draws a glyph only where it deviates
+  // from the key signature). An explicit accidental wins; an explicit natural ("n")
+  // stays a bare letter (so it draws ♮ against a sharp/flat key); a diatonic note
+  // inherits the key-signature accidental — so a bare F in G major is spelled "F#"
+  // and matches the target's spelling instead of drawing a spurious natural.
+  function pitchWithAcc(event) {
+    var letter = event.pitch.charAt(0);
+    var octave = event.pitch.slice(1);
+    var acc;
+    if (event.acc === "#" || event.acc === "b") {
+      acc = event.acc;
+    } else if (event.acc === "n") {
+      acc = "";
+    } else {
+      var k = curKeyAcc && curKeyAcc[letter.toUpperCase()];
+      acc = k === 1 ? "#" : k === -1 ? "b" : "";
+    }
+    return letter + acc + octave;
+  }
 
   // Diatonic ordinal: octave*7 + letter index, ignoring any accidental. Adjacent
   // ordinals are adjacent staff positions (a line/space step).
@@ -79,6 +133,7 @@
   var state = {
     mode: "note", // note | rest | erase
     duration: "q",
+    accidental: "", // "" (diatonic, follows key sig) | "#" | "b" | "n"
     events: [],
     history: [],
   };
@@ -158,12 +213,16 @@
 
   function cloneEvent(event) {
     if (!event) return null;
-    return {
+    var out = {
       kind: event.kind === "rest" ? "rest" : "note",
       duration: String(event.duration || "q"),
       startUnit: Number(event.startUnit || 0),
       pitch: event.kind === "rest" ? null : String(event.pitch || "C4"),
     };
+    // Only carry an accidental when the note actually has one, so diatonic
+    // (C-major / natural-minor) events serialize exactly as before.
+    if (out.kind === "note" && event.acc) out.acc = String(event.acc);
+    return out;
   }
 
   function normalizedEvent(event) {
@@ -328,6 +387,9 @@
     curMode = String((data && data.mode) || "major");
     curTimeSig = String((data && data.timeSig) || "4/4");
     curKeySig = String((data && data.keySig) || "");
+    // SightSingingParseData already normalizes keyAccidentals -> keyAcc.
+    curKeyAcc =
+      data && data.keyAcc && typeof data.keyAcc === "object" ? data.keyAcc : {};
     curGradeMode = String((data && data.gradeMode) || "");
     PITCHES = buildPitches(targetEventsFromData(data), clef);
   }
@@ -395,11 +457,19 @@
       mode: curMode,
       timeSig: curTimeSig,
       keySig: curKeySig,
+      keyAcc: curKeyAcc,
       events: state.events.map(function (event) {
         if (event.kind === "rest") {
           return { kind: "rest", duration: event.duration };
         }
-        return { kind: "note", pitch: event.pitch, duration: event.duration };
+        // Bake any explicit accidental into the pitch string; the renderer reads
+        // accidentals from the string and draws a glyph where it deviates from the
+        // key signature (a bare letter in a sharp/flat key -> ♮).
+        return {
+          kind: "note",
+          pitch: pitchWithAcc(event),
+          duration: event.duration,
+        };
       }),
     };
   }
@@ -410,13 +480,17 @@
       userEvent.kind === targetEvent.kind &&
       userEvent.startUnit === targetEvent.startUnit &&
       userEvent.duration === targetEvent.duration &&
-      // Compare by STAFF POSITION, not pitch string: the editor only lets the
-      // student express a letter+octave line/space (the key signature supplies
-      // the accidental), so a target of "F#4" must match a placed "F4" on the F
-      // line. ordinalOf strips accidentals to the diatonic position. (For the
-      // all-natural melodies shipped today this is identical to === .)
+      // A pitch matches when it is both on the same STAFF POSITION (line/space,
+      // so E♯ can't pass for F) AND at the same CHROMATIC pitch. In a diatonic
+      // key the key signature supplies the accidental, so tapping the F line in
+      // G major already reads as F♯ (matches a target "F#4") with no glyph. Where
+      // a note is spelled outside the key signature — harmonic-minor si = G♯ in A
+      // minor — the student must add the ♯: a bare G is then a genuine miss. For
+      // all-natural C-major melodies both checks reduce to the old position test.
       (userEvent.kind === "rest" ||
-        ordinalOf(userEvent.pitch) === ordinalOf(targetEvent.pitch))
+        (ordinalOf(userEvent.pitch) === ordinalOf(targetEvent.pitch) &&
+          pitchChroma(userEvent.pitch, userEvent.acc || "", curKeyAcc) ===
+            pitchChroma(targetEvent.pitch, "", curKeyAcc)))
     );
   }
 
@@ -567,6 +641,37 @@
     }
     tools.appendChild(seg);
 
+    // Accidental palette — only for modes that spell notes outside the key
+    // signature (harmonic minor's raised 7). Diatonic keys never show it: the key
+    // signature supplies every accidental, so it would be dead weight (and a
+    // spoiler-free, category-level cue rather than a per-melody one).
+    if (modeAllowsAccidentals(curMode)) {
+      var accSeg = document.createElement("div");
+      accSeg.className = "ss-segmented ss-accbar";
+      accSeg.id = "transcribe-accbar";
+      var accDefs = [
+        { acc: "b", label: "♭" },
+        { acc: "n", label: "♮" },
+        { acc: "#", label: "♯" },
+      ];
+      for (var ai = 0; ai < accDefs.length; ai++) {
+        (function (def) {
+          var btn = buildButton(
+            "transcribe-acc-" + (def.acc === "#" ? "sharp" : def.acc === "b" ? "flat" : "natural"),
+            "ss-btn ss-btn-acc",
+            "<span>" + def.label + "</span>",
+            function () {
+              window.SightSingingTranscriptionSetAccidental(def.acc);
+            }
+          );
+          btn.setAttribute("data-transcribe-acc", def.acc);
+          btn.setAttribute("aria-label", "accidental " + def.label);
+          accSeg.appendChild(btn);
+        })(accDefs[ai]);
+      }
+      tools.appendChild(accSeg);
+    }
+
     tools.appendChild(
       buildButton(
         "transcribe-undo",
@@ -643,6 +748,26 @@
         '<span class="ss-btn-caption">' +
         DURATION_LABELS[duration] +
         "</span>";
+    }
+
+    var accbar = document.getElementById("transcribe-accbar");
+    if (accbar) {
+      // Accidentals apply to notes only — dim in rest/erase mode.
+      accbar.className =
+        "ss-segmented ss-accbar" +
+        (state.mode === "note" ? "" : " ss-accbar-disabled");
+      var accs = ["b", "n", "#"];
+      for (var a = 0; a < accs.length; a++) {
+        var slug = accs[a] === "#" ? "sharp" : accs[a] === "b" ? "flat" : "natural";
+        var accBtn = document.getElementById("transcribe-acc-" + slug);
+        if (accBtn) {
+          accBtn.className =
+            "ss-btn ss-btn-acc" +
+            (state.mode === "note" && state.accidental === accs[a]
+              ? " ss-tool-active"
+              : "");
+        }
+      }
     }
 
     var undoBtn = document.getElementById("transcribe-undo");
@@ -816,7 +941,16 @@
     ctx.setStrokeStyle(ink);
 
     var stave = new VF.Stave(4, staveY, width - 10);
-    stave.addClef(clef).addTimeSignature(curTimeSig);
+    stave.addClef(clef);
+    // Show the key signature so a transfer key reads correctly (e.g. G major's F♯
+    // in the signature means the F line is F♯ without a per-note glyph). A minor /
+    // C major have an empty signature. getNoteStartX() below absorbs its width.
+    if (curKeySig) {
+      try {
+        stave.addKeySignature(curKeySig);
+      } catch (e) {}
+    }
+    stave.addTimeSignature(curTimeSig);
     stave.setStyle({
       fillStyle: themeVar("--ss-ink-soft", "#6f6a63"),
       strokeStyle: themeVar("--ss-ink-soft", "#6f6a63"),
@@ -838,16 +972,24 @@
             duration: slot.event.duration + "r",
           });
         } else {
-          /* "G4" -> "g/4" (letter + octave; editor pitches carry no accidentals) */
+          /* "G4" -> "g/4"; an explicit accidental bakes into the key ("g#/4") and
+             also gets a drawn glyph. Diatonic notes carry none — the key signature
+             at the stave head supplies the accidental. */
+          var evAcc = slot.event.acc || "";
+          var accVex = evAcc === "#" ? "#" : evAcc === "b" ? "b" : "";
           note = new VF.StaveNote({
             clef: clef,
             keys: [
               slot.event.pitch.charAt(0).toLowerCase() +
+                accVex +
                 "/" +
                 slot.event.pitch.slice(1),
             ],
             duration: slot.event.duration,
           });
+          if (evAcc === "#" || evAcc === "b" || evAcc === "n") {
+            note.addModifier(new VF.Accidental(evAcc), 0);
+          }
         }
       } else {
         note = new VF.StaveNote({
@@ -1079,6 +1221,7 @@
     if (ghost.type === "note") {
       ghost.pitchIndex = pitchIndexFromY(y);
       ghost.pitch = PITCHES[ghost.pitchIndex];
+      ghost.acc = state.accidental;
     }
     return ghost;
   }
@@ -1327,8 +1470,31 @@
       }
     }
 
+    var accSym = ghost.acc === "#" ? "♯"
+      : ghost.acc === "b" ? "♭"
+      : ghost.acc === "n" ? "♮" : "";
+    if (accSym) {
+      var accEl = svgEl(
+        "text",
+        {
+          x: headX - 13,
+          y: noteY + 5,
+          "font-size": 17,
+          "font-weight": 700,
+          "text-anchor": "middle",
+          fill: accent,
+          "fill-opacity": 0.9,
+        },
+        overlay
+      );
+      accEl.textContent = accSym;
+    }
+
+    // Label shows the spelled pitch (letter + accidental + octave), e.g. "G♯4".
+    var labelPitch =
+      ghost.pitch.charAt(0) + accSym + ghost.pitch.slice(1);
     showGhostLabel(
-      ghost.pitch + " · " + beatText,
+      labelPitch + " · " + beatText,
       headX,
       geo.staveTopY - 24,
       null
@@ -1429,6 +1595,7 @@
               pitch: ghost.pitch,
               duration: state.duration,
               startUnit: ghost.startUnit,
+              acc: ghost.acc || "",
             }
       );
       sortEvents();
@@ -1570,6 +1737,7 @@
     state.history = [];
     state.mode = "note";
     state.duration = "q";
+    state.accidental = "";
 
     if (!supportedData(data)) {
       editor.innerHTML =
@@ -1663,6 +1831,17 @@
     return false;
   };
 
+  window.SightSingingTranscriptionSetAccidental = function (acc) {
+    var next = acc === "#" || acc === "b" || acc === "n" ? acc : "";
+    // Toggle: tapping the active accidental clears it (back to diatonic).
+    state.accidental = state.accidental === next ? "" : next;
+    // Accidentals only make sense while placing notes.
+    if (state.accidental) state.mode = "note";
+    hover = null;
+    renderAll();
+    return false;
+  };
+
   window.SightSingingTranscriptionUndo = function () {
     if (state.history.length) {
       state.events = state.history.pop();
@@ -1705,6 +1884,7 @@
       return {
         mode: state.mode,
         duration: state.duration,
+        accidental: state.accidental,
         events: state.events.map(cloneEvent),
         historyDepth: state.history.length,
       };

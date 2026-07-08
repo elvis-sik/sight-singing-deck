@@ -189,6 +189,26 @@ class IntervalDictationTest(unittest.TestCase):
             with self.subTest(stage=stage.id):
                 self.assertGreaterEqual(len(generate_stage(stage)), 4)
 
+    def test_tritone_stripped_in_the_realization_mode(self) -> None:
+        # The interval stages declare no mode, so generate_stage takes the
+        # realization mode. The forbidden tritone (6 semitones) sits at DIFFERENT
+        # scale positions in major (fa↔ti) vs la-based minor, so a stage realized
+        # in minor must be filtered in minor — not with the major default. This is
+        # the guard for the forbid_tritone_leap mode fix.
+        fourth = next(s for s in DICTATION_INTERVAL_STAGES if s.id == "IVD4")
+        for mode in ("major", "natural_minor", "harmonic_minor"):
+            mels = generate_stage(fourth, mode)
+            self.assertTrue(mels, f"IVD4 yielded nothing in {mode}")
+            for mel in mels:
+                leaps = [
+                    abs(diatonic_semitone(b, mode) - diatonic_semitone(a, mode))
+                    for a, b in zip(mel, mel[1:])
+                ]
+                with self.subTest(mode=mode, mel=mel):
+                    self.assertNotIn(
+                        6, leaps, f"IVD4 kept a tritone when realized in {mode}: {mel}"
+                    )
+
 
 if __name__ == "__main__":
     unittest.main()

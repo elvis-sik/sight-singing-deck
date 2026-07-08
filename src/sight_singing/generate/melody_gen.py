@@ -32,8 +32,18 @@ def _max_run(mel: tuple[int, ...]) -> int:
     return best
 
 
-def passes_hard_rules(mel: tuple[int, ...], stage: Stage) -> bool:
-    """Reject melodies that violate a stage's hard constraints."""
+def passes_hard_rules(
+    mel: tuple[int, ...], stage: Stage, mode: str | None = None
+) -> bool:
+    """Reject melodies that violate a stage's hard constraints.
+
+    ``mode`` is the *realization* mode this melody will be spelled in. It matters
+    only for the tritone check, whose scale positions move between major and minor
+    (fa↔ti is 3↔6 in major but 1↔5 in la-based minor). A stage's own ``mode``
+    override wins; otherwise the caller's realization mode is used (so a mode=None
+    interval drill realized in minor still strips the *minor* tritone, not the
+    major one).
+    """
     steps = _steps(mel)
     abs_steps = [abs(s) for s in steps]
 
@@ -68,9 +78,11 @@ def passes_hard_rules(mel: tuple[int, ...], stage: Stage) -> bool:
     # a diatonic 4th is a P4 almost everywhere but an augmented 4th between fa and
     # ti — so we check the realized semitone interval for the stage's mode.
     if stage.forbid_tritone_leap:
-        mode = stage.mode or "major"
+        eff_mode = stage.mode or mode or "major"
         for a, b in zip(mel, mel[1:]):
-            if abs(diatonic_semitone(b, mode) - diatonic_semitone(a, mode)) == 6:
+            if abs(
+                diatonic_semitone(b, eff_mode) - diatonic_semitone(a, eff_mode)
+            ) == 6:
                 return False
 
     # Recovery after a big leap (>= a third): the next motion should step back
@@ -109,15 +121,20 @@ def passes_hard_rules(mel: tuple[int, ...], stage: Stage) -> bool:
     return True
 
 
-def enumerate_stage(stage: Stage) -> list[tuple[int, ...]]:
-    """All degree sequences satisfying the stage's hard rules."""
+def enumerate_stage(
+    stage: Stage, mode: str | None = None
+) -> list[tuple[int, ...]]:
+    """All degree sequences satisfying the stage's hard rules.
+
+    ``mode`` is the realization mode (see ``passes_hard_rules``).
+    """
     out = []
     for mel in itertools.product(stage.pool, repeat=stage.length):
         if mel[0] not in stage.start_pool or mel[-1] not in stage.end_pool:
             continue
         if any(abs(b - a) > stage.max_step for a, b in zip(mel, mel[1:])):
             continue
-        if passes_hard_rules(mel, stage):
+        if passes_hard_rules(mel, stage, mode):
             out.append(mel)
     return out
 
@@ -206,8 +223,15 @@ def sample_diverse(
     return picked
 
 
-def generate_stage(stage: Stage) -> list[tuple[int, ...]]:
-    """The full pipeline for one stage: enumerate → rank → diverse sample."""
-    candidates = enumerate_stage(stage)
+def generate_stage(
+    stage: Stage, mode: str | None = None
+) -> list[tuple[int, ...]]:
+    """The full pipeline for one stage: enumerate → rank → diverse sample.
+
+    ``mode`` is the realization mode passed through to the tritone check; omit it
+    (defaulting to the stage's own mode, then major) unless the stage will be
+    realized in a mode it doesn't declare (e.g. a minor interval drill).
+    """
+    candidates = enumerate_stage(stage, mode)
     candidates.sort(key=lambda m: quality_score(m, stage), reverse=True)
     return sample_diverse(candidates, stage, stage.count)

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Transcription Harness · Harmonic minor (accidentals)</title>
+    <link rel="stylesheet" href="../assets/card_styles.css" />
+    <link rel="stylesheet" href="harness.css" />
+  </head>
+  <body class="card">
+    <button type="button" class="ss-btn harness-night-toggle" id="night-toggle">Night mode</button>
+    <p class="harness-title">Transcribe · front · A harmonic minor (si = G♯)</p>
+
+    <script>
+      window.sightSingingMelodyId = "debug_harmonic";
+    </script>
+
+    <div class="ss-wrap">
+      <div id="melody-data" style="display:none;">
+        {"version":2,"clef":"treble","key":"A","mode":"harmonic_minor","keySig":"Am","keyAccidentals":{"A":0,"B":0,"C":0,"D":0,"E":0,"F":0,"G":0},"timeSig":"4/4","notes":["E5","C5","B4","G#4","A4"],"durations":["q","q","q","q","q"],"bars":[{"events":[{"kind":"note","pitch":"E5","duration":"q"},{"kind":"note","pitch":"C5","duration":"q"},{"kind":"note","pitch":"B4","duration":"q"},{"kind":"note","pitch":"G#4","duration":"q"},{"kind":"note","pitch":"A4","duration":"q"}]}],"degrees":[5,3,2,7,1]}
+      </div>
+      <div class="ss-meta" id="melody-meta" data-ss-badge="Dictation"></div>
+      <div class="ss-panel ss-editor-panel">
+        <div id="transcribe-editor"></div>
+      </div>
+      <div id="transcribe-ui"></div>
+      <p class="ss-prompt ss-prompt-transcribe">Write the melody you hear.</p>
+    </div>
+
+    <p class="harness-nav">
+      <a href="transcription-harness.html">Transcribe</a> ·
+      <a href="review-harness-harmonic.html">Harmonic review</a>
+    </p>
+
+    <script src="../assets/_vexflow.js"></script>
+    <script src="../assets/_renderer.js"></script>
+    <script src="../assets/_transcription.js"></script>
+    <script>
+      document.getElementById("night-toggle").addEventListener("click", function () {
+        document.body.classList.toggle("nightMode");
+        document.body.classList.toggle("night_mode");
+        if (window.SightSingingRedraw) window.SightSingingRedraw();
+        if (window.SightSingingTranscriptionRefresh) window.SightSingingTranscriptionRefresh();
+      });
+    </script>
+  </body>
+</html>

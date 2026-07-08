@@ -22,13 +22,22 @@ covers only the parallel dictation path.
 >   **and bass** clef (was locked to treble C4–C5) — unblocks minor/bass and fixes
 >   the shipped B3 (`ti,`) cards.
 >
-> Built deck: `Dictation::{1 · Major, 2 · Minor, 3 · Intervals}` = 340 cards.
-> **Deferred (need more than a spec):** harmonic-minor `ND9h`
-> (`DICTATION_MINOR_HARMONIC_STAGES` — `si`=G♯ needs editor accidental input);
-> other keys G/F (need position-based grading that strips key-signature
-> accidentals); a bass-clef *transfer* track (editor-ready, not yet built); and
-> **rhythm dictation** (a rests-equivalence grader is designed — see below — but
-> not yet wired in).
+> Built deck: `Dictation::{1 · Major, 2 · Minor, 3 · Intervals, 4 · Bass Clef,
+> 5 · Rhythm, 6 · Other Keys}`.
+> - **Phase A** added the bass-clef transfer track (C major / A minor).
+> - **Phase B** added **rhythm dictation** (`5 · Rhythm`, R1–R5) graded by a
+>   sounded-rhythm grader (pitch-agnostic, rest-spelling equivalent).
+> - **Phase C** added the **editor's accidental input + key-signature display**,
+>   which unblocked the last two: the harmonic-minor capstone `ND9h`
+>   (`DICTATION_MINOR_HARMONIC_STAGES` — the raised 7 `si`=G♯, spelled with an
+>   explicit sharp) now closes the Minor track, and a bounded **transfer to G/F
+>   major** (`6 · Other Keys`) drills reading the key signature. Grading compares
+>   effective *chromatic* pitch (key-sig default unless an explicit accidental
+>   overrides), so a bare F on the F line matches an F♯ target in G major while a
+>   bare G is a genuine miss against the harmonic-minor `si`.
+>
+> **Still deferred:** dotted/tie/triplet rhythm *input* in the editor (blocks the
+> advanced rhythm rungs) and solfège-first answer entry.
 
 ## Why a separate curriculum
 

@@ -6,13 +6,18 @@ by phrase length + working memory + interval audibility, with its own pool. Thes
 are the PITCH-ONLY, even-rhythm strands, each a track under a top-level
 ``Dictation`` deck tree:
 
-  1 · Major     — priming floor (DP0-DP2) then DD1-DD9, C major, treble.
-  2 · Minor     — NDP0 then ND1-ND9 (natural minor), A minor, treble.
-  3 · Intervals — IVD2-IVD8, hear one interval, C major, treble.
+  1 · Major       — priming floor (DP0-DP2) then DD1-DD9, C major, treble.
+  2 · Minor       — NDP0 then ND1-ND9 (natural minor) + the harmonic-minor
+                    capstone ND9h (raised 7 si = G#, needs the editor's accidental
+                    input), A minor, treble.
+  3 · Intervals   — IVD2-IVD8, hear one interval, C major, treble.
+  4 · Bass Clef   — a curated spread on the bass staff (C major / A minor).
+  5 · Rhythm      — one-bar rhythms on a single pitch, graded by sounded rhythm.
+  6 · Other Keys  — a curated spread transferred to G major / F major (reading
+                    the key signature), treble.
 
 Each melody is one Dictate card (hear -> notate) carrying per-stage listen-count
-thresholds. (Harmonic-minor ND9h, other keys, bass clef, and rhythm dictation are
-deferred — they need editor accidental input / a rests grader; see the doc.)
+thresholds.
 
 Run:  python scripts/build_dictation_deck.py [--limit N]
 """
@@ -49,6 +54,7 @@ from sight_singing.build.library import (
 from sight_singing.card_data import melody_to_card_fields
 from sight_singing.curriculum.stages import (
     DICTATION_INTERVAL_STAGES,
+    DICTATION_MINOR_HARMONIC_STAGES,
     DICTATION_MINOR_PRIMING_SINGLETONS,
     DICTATION_MINOR_STAGES,
     DICTATION_PRIMING_SINGLETONS,
@@ -74,6 +80,10 @@ _TRACK_DESCS = {
     "4 · Bass Clef::C major": "The dictation ladder read/notated on the bass staff.",
     "4 · Bass Clef::A minor": "Bass-clef dictation in A minor. After treble is fluent.",
     "5 · Rhythm": "Hear a one-bar rhythm on one pitch; notate the rhythm (timing only).",
+    "6 · Other Keys::G major": "The same material in G major — read the F♯ in the key "
+    "signature (tap the F line; it sounds F♯).",
+    "6 · Other Keys::F major": "The same material in F major — read the B♭ in the key "
+    "signature (tap the B line; it sounds B♭).",
 }
 
 
@@ -119,6 +129,15 @@ def _pick(stages: list[Stage], ids: tuple[str, ...]) -> list[Stage]:
 _BASS_MAJOR = _pick(DICTATION_STAGES, ("DD1", "DD3", "DD5", "DD6", "DD7", "DD9"))
 _BASS_MINOR = _pick(DICTATION_MINOR_STAGES, ("ND1", "ND3", "ND5", "ND6", "ND7", "ND9"))
 
+# Bounded transfer to sharp/flat keys: the SAME curated spread, realized in G major
+# (one sharp) and F major (one flat). Diatonic — the key signature supplies the
+# accidental, so the student reads it rather than typing it (that is the skill).
+_XFER_MAJOR = _pick(DICTATION_STAGES, ("DD1", "DD3", "DD5", "DD6", "DD7", "DD9"))
+
+# The minor track's natural-minor ladder plus the harmonic-minor capstone (ND9h),
+# whose si (raised 7 = G#) is now spellable in the editor.
+_MINOR_TRACK_STAGES = DICTATION_MINOR_STAGES + DICTATION_MINOR_HARMONIC_STAGES
+
 TRACKS: list[DictTrack] = [
     DictTrack(
         "1 · Major", "dictation_major", "C", "major", "treble",
@@ -128,7 +147,7 @@ TRACKS: list[DictTrack] = [
     DictTrack(
         "2 · Minor", "dictation_minor", "A", "natural_minor", "treble",
         "NDP0", "Tonic Echo (minor)", DICTATION_MINOR_PRIMING_SINGLETONS,
-        DICTATION_MINOR_STAGES, DICT_DECK_BASE + 40,
+        _MINOR_TRACK_STAGES, DICT_DECK_BASE + 40,
     ),
     DictTrack(
         "3 · Intervals", "dictation_intervals", "C", "major", "treble",
@@ -149,6 +168,14 @@ TRACKS: list[DictTrack] = [
         "5 · Rhythm", "dictation_rhythm", "C", "major", "treble",
         "", "", (), [], DICT_DECK_BASE + 160,
         kind="rhythm", rhythm_ids=("R1", "R2", "R3", "R4", "R5"),
+    ),
+    DictTrack(
+        "6 · Other Keys::G major", "dictation_key_g", "G", "major", "treble",
+        "", "", (), _XFER_MAJOR, DICT_DECK_BASE + 190, per_stage=6,
+    ),
+    DictTrack(
+        "6 · Other Keys::F major", "dictation_key_f", "F", "major", "treble",
+        "", "", (), _XFER_MAJOR, DICT_DECK_BASE + 220, per_stage=6,
     ),
 ]
 
