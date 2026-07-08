@@ -174,14 +174,20 @@ def solfege(k: Key, d: int) -> str:
 
 
 def is_tendency_tone(k: Key, d: int) -> bool:
-    """Fa (deg 4) and Ti (deg 7, leading tone) in major; la-minor analogues."""
-    deg = degree_number(d)
+    """Half-step tendency tones, by scale position (diatonic index mod 7).
+
+    Major: fa (index 3 → mi) and ti (index 6 → do). La-based natural minor's
+    half-steps sit elsewhere: ti (index 1 → do) and fa (index 5 → mi). Harmonic
+    minor adds the raised leading tone si (index 6 → la). (The old version reused
+    the major degree numbers in minor and flagged re — this works in the same
+    diatonic-index space as the stage tendency rules.)
+    """
+    pos = d % 7
     if k.mode == "major":
-        return deg in (4, 7)
-    # la-based minor: unstable tones are re(4→3) and, in harmonic minor, si(7).
+        return pos in (3, 6)
     if k.mode == "harmonic_minor":
-        return deg in (4, 7)
-    return deg == 4  # natural minor: fa pulls to mi; no true leading tone
+        return pos in (1, 5, 6)
+    return pos in (1, 5)  # natural minor
 
 
 # --- clef anchoring (MIDI) ---------------------------------------------------
