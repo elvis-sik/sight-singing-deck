@@ -25,6 +25,12 @@
   // "rhythm"/"sounded" ⇒ grade by sounded rhythm (pitch-agnostic, rest-spelling
   // equivalent); "" ⇒ exact pitch+rhythm match (the melodic default).
   var curGradeMode = "";
+  // Which rhythmic grid the current target uses, set in applyPitchContext:
+  //   "simple"   — quarter beat, eighth grid (every melodic + duple-rhythm card)
+  //   "triplet"  — quarter beat, sextuplet grid (targets with tuplet eighths)
+  //   "compound" — DOTTED-quarter beat (6/8 etc.); eighth = a third of the beat
+  // Gates the triplet tool (triplet only) and the compound BEAT_FRACTION.
+  var curGridKind = "simple";
   var LETTERS = "CDEFGAB";
   var LETTER_SEMITONE = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
 
@@ -127,12 +133,19 @@
   // applyPitchContext; it stays 2 for every existing melodic/duple-rhythm card, so
   // their unit math (and the tests pinned to it) is unchanged.
   var UNITS_PER_BEAT = 2;
-  var BAR_UNITS = 4 * UNITS_PER_BEAT; // units in one 4/4 bar (reference)
+  var BEATS_PER_BAR = 4; // beats in one bar (4/4 → 4, 6/8 → 2, 9/8 → 3)
+  var EIGHTH_UNITS = 1; // grid units in one eighth note (2 on the triplet/compound grid)
+  var BAR_UNITS = BEATS_PER_BAR * UNITS_PER_BEAT; // units in one bar (reference)
   // Editor working length in grid units = the target melody's total length
   // (beat-aligned). Set from the target in initFront/renderSummary.
   var capacity = BAR_UNITS;
-  // Duration → fraction of a beat. Units = fraction × UNITS_PER_BEAT (× 1.5 dotted).
-  var BEAT_FRACTION = { "8": 0.5, q: 1, h: 2, w: 4, "8t": 1 / 3 };
+  // Duration → fraction of a BEAT. Units = fraction × UNITS_PER_BEAT (× 1.5 dotted).
+  // Simple meters count the beat as a quarter (eighth = ½ beat). Compound meters
+  // (x/8) count it as a DOTTED quarter (eighth = ⅓ beat, quarter = ⅔, dotted
+  // quarter = 1) — the same durationUnits() formula, just a different beat.
+  var BEAT_FRACTION_SIMPLE = { "8": 0.5, q: 1, h: 2, w: 4, "8t": 1 / 3 };
+  var BEAT_FRACTION_COMPOUND = { "8": 1 / 3, q: 2 / 3, h: 4 / 3, w: 8 / 3 };
+  var BEAT_FRACTION = BEAT_FRACTION_SIMPLE;
   var DURATION_ORDER = ["w", "h", "q", "8"];
   var DURATION_LABELS = {
     "8": "Eighth", q: "Quarter", h: "Half", w: "Whole",
@@ -225,8 +238,10 @@
     if (curGradeMode === "rhythm" || curGradeMode === "sounded") {
       // Triplet eighths sit on the triplet subdivision (a third of a beat); every
       // other value snaps to the eighth grid (offbeats allowed for syncopation).
+      // EIGHTH_UNITS is the eighth's size on the active grid (1 simple, 3 triplet,
+      // 2 compound), so this stays the eighth grid in every meter.
       if (String(duration) === "8t") return Math.max(1, UNITS_PER_BEAT / 3);
-      return Math.max(1, UNITS_PER_BEAT / 2);
+      return Math.max(1, EIGHTH_UNITS);
     }
     return DURATION_ALIGN[String(duration || "")] || 1;
   }
@@ -471,19 +486,45 @@
   // treble C4–C5.
   function applyPitchContext(data) {
     // Grid resolution FIRST — everything below (targetEventsFromData, buildPitches,
-    // capacity) goes through durationUnits, which depends on UNITS_PER_BEAT. Use the
-    // sextuplet grid only when the target actually contains triplets.
+    // capacity) goes through durationUnits, which depends on UNITS_PER_BEAT and
+    // BEAT_FRACTION. Three grids: simple (quarter beat, eighth grid), triplet
+    // (quarter beat, sextuplet grid) and compound (dotted-quarter beat).
+    curTimeSig = String((data && data.timeSig) || "4/4");
+    var tsParts = curTimeSig.split("/");
+    var tsNum = parseInt(tsParts[0], 10) || 4;
+    var tsDen = parseInt(tsParts[1], 10) || 4;
+    // Compound meter: x/8 with x a multiple of 3 and ≥ 6 (6/8, 9/8, 12/8). The
+    // beat is a dotted quarter (three eighths), so an eighth is ⅓ of a beat.
+    var isCompound = tsDen === 8 && tsNum % 3 === 0 && tsNum >= 6;
     var hasTriplet =
+      !isCompound &&
       !!(data && Array.isArray(data.events)) &&
       data.events.some(function (e) {
         return e && e.tuplet === true;
       });
-    UNITS_PER_BEAT = hasTriplet ? 6 : 2;
-    BAR_UNITS = 4 * UNITS_PER_BEAT;
+    if (isCompound) {
+      curGridKind = "compound";
+      UNITS_PER_BEAT = 6; // dotted-quarter beat = 6 units, so an eighth is 2
+      EIGHTH_UNITS = 2;
+      BEATS_PER_BAR = tsNum / 3;
+      BEAT_FRACTION = BEAT_FRACTION_COMPOUND;
+    } else if (hasTriplet) {
+      curGridKind = "triplet";
+      UNITS_PER_BEAT = 6; // sextuplet grid: a triplet eighth is an integer 2 units
+      EIGHTH_UNITS = 3;
+      BEATS_PER_BAR = 4;
+      BEAT_FRACTION = BEAT_FRACTION_SIMPLE;
+    } else {
+      curGridKind = "simple";
+      UNITS_PER_BEAT = 2;
+      EIGHTH_UNITS = 1;
+      BEATS_PER_BAR = 4;
+      BEAT_FRACTION = BEAT_FRACTION_SIMPLE;
+    }
+    BAR_UNITS = BEATS_PER_BAR * UNITS_PER_BEAT;
     clef = String((data && data.clef) || "treble");
     curKey = String((data && data.key) || "C");
     curMode = String((data && data.mode) || "major");
-    curTimeSig = String((data && data.timeSig) || "4/4");
     curKeySig = String((data && data.keySig) || "");
     // SightSingingParseData already normalizes keyAccidentals -> keyAcc.
     curKeyAcc =
@@ -746,7 +787,9 @@
     }
     // Triplet tool — only on triplet cards (target contains triplets ⇒ the
     // sextuplet grid). One tap fills the pointed-at beat with three equal notes.
-    if (UNITS_PER_BEAT === 6) {
+    // Compound cards share UNITS_PER_BEAT === 6 but must NOT show it, hence the
+    // gridKind gate: their thirds-of-a-beat come from plain eighths, not tuplets.
+    if (curGridKind === "triplet") {
       var tripBtn = buildButton(
         "transcribe-triplet",
         "ss-btn ss-btn-duration ss-btn-triplet",
@@ -1400,7 +1443,7 @@
      * a third of a beat is an integer 2 units, so the three notes land on integer
      * grid positions beat+0/+2/+4.
      */
-    if (state.mode === "note" && state.triplet && UNITS_PER_BEAT === 6) {
+    if (state.mode === "note" && state.triplet && curGridKind === "triplet") {
       var pu = (x - geo.gridLeft) / geo.unitPx;
       var beatStart = Math.floor(pu / UNITS_PER_BEAT) * UNITS_PER_BEAT;
       if (beatStart < 0) beatStart = 0;
@@ -2242,6 +2285,12 @@
         dotted: state.dotted,
         triplet: state.triplet,
         unitsPerBeat: UNITS_PER_BEAT,
+        beatsPerBar: BEATS_PER_BAR,
+        eighthUnits: EIGHTH_UNITS,
+        barUnits: BAR_UNITS,
+        gridKind: curGridKind,
+        timeSig: curTimeSig,
+        capacity: capacity,
         accidental: state.accidental,
         events: state.events.map(cloneEvent),
         historyDepth: state.history.length,

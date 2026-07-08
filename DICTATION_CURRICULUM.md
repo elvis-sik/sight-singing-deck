@@ -51,8 +51,21 @@ covers only the parallel dictation path.
 >     beat (fixing a spurious barline that also affected the sight-singing R8/R9
 >     cards). Rungs R8/R9.
 >
-> **Still deferred:** compound meter (no content generated for it yet) and
-> solfège-first answer entry (a separate input mode).
+> - **Phase E** adds **compound meter (6/8)** as a rhythm-dictation coda, rungs
+>   **RC1–RC3**. The editor grid is now meter-aware: the target's `timeSig` selects
+>   one of three grids — *simple* (quarter beat), *triplet* (quarter beat, sextuplet
+>   subdivision), or *compound* (a **dotted-quarter beat**, so an eighth is a third
+>   of the beat, not a half). In 6/8 an eighth is 2 units, a dotted quarter is the
+>   6-unit beat, and a bar is two beats (12 units). The renderer beams per
+>   dotted-quarter (three eighths per group, not two) and splits measures at six
+>   eighths. RC1 teaches the pulse (dotted-quarter beats vs three-eighth divisions),
+>   RC2 the within-beat long–short / short–long figures, RC3 beat rests. The dotted
+>   quarter is entered with the existing dot modifier; no triplet tool (compound
+>   thirds are plain eighths, not tuplets).
+>
+> **Still deferred:** solfège-first answer entry — **declined**: transcribing to
+> the staff is the target skill, not naming syllables (a separate, narrower input
+> mode we are intentionally not building).
 
 ## Why a separate curriculum
 

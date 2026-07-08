@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Compound 6/8 Review Harness (RC1)</title>
+    <link rel="stylesheet" href="../assets/card_styles.css" />
+    <link rel="stylesheet" href="harness.css" />
+  </head>
+  <body class="card">
+    <button type="button" class="ss-btn harness-night-toggle" id="night-toggle">Night mode</button>
+    <p class="harness-title">Compound 6/8 dictation · back (review)</p>
+
+    <script>
+      window.sightSingingMelodyId = "debug_review_compound";
+      // Target: a dotted quarter (beat 1) then three eighths (beat 2) in 6/8.
+      // On the compound grid the beat is a dotted quarter (6 units) and an eighth
+      // is 2 units, so the seeded perfect answer is qd@0 then eighths@6/8/10.
+      // Sounded-rhythm grading must call it perfect.
+      try {
+        localStorage.setItem(
+          "ss-transcribe:debug_review_compound",
+          JSON.stringify([
+            { kind: "note", pitch: "B4", duration: "qd", startUnit: 0 },
+            { kind: "note", pitch: "B4", duration: "8", startUnit: 6 },
+            { kind: "note", pitch: "B4", duration: "8", startUnit: 8 },
+            { kind: "note", pitch: "B4", duration: "8", startUnit: 10 }
+          ])
+        );
+      } catch (e) {}
+    </script>
+
+    <div id="back" style="display:none;"></div>
+
+    <div class="ss-wrap">
+      <div id="melody-data" style="display:none;">
+        {"version":2,"clef":"treble","key":"C","mode":"major","keySig":"C","keyAccidentals":{"C":0,"D":0,"E":0,"F":0,"G":0,"A":0,"B":0},"timeSig":"6/8","gradeMode":"rhythm","notes":["B4","B4","B4","B4"],"durations":["qd","8","8","8"],"bars":[{"events":[{"kind":"note","duration":"qd","pitch":"B4"},{"kind":"note","duration":"8","pitch":"B4"},{"kind":"note","duration":"8","pitch":"B4"},{"kind":"note","duration":"8","pitch":"B4"}]}],"degrees":[]}
+      </div>
+      <div class="ss-meta" id="melody-meta" data-ss-badge="Rhythm"></div>
+      <div id="transcribe-result" class="ss-verdict ss-verdict-none"></div>
+      <div id="transcribe-user-block">
+        <div class="ss-compare-label">Your transcription</div>
+        <div class="ss-panel">
+          <div id="transcribe-user" class="ss-notation"></div>
+        </div>
+        <div id="transcribe-legend" class="ss-legend">
+          <span class="ss-legend-dot ss-legend-dot-good"></span>matches
+          <span class="ss-legend-dot ss-legend-dot-bad"></span>different
+        </div>
+      </div>
+      <div class="ss-compare-label">Target rhythm</div>
+      <div class="ss-panel">
+        <div id="transcribe-target" class="ss-notation"></div>
+      </div>
+    </div>
+
+    <script src="../assets/_vexflow.js"></script>
+    <script src="../assets/_renderer.js"></script>
+    <script src="../assets/_transcription.js"></script>
+    <script>
+      window.SightSingingTranscriptionReview();
+      document.getElementById("night-toggle").addEventListener("click", function () {
+        document.body.classList.toggle("nightMode");
+        document.body.classList.toggle("night_mode");
+        if (window.SightSingingRedraw) window.SightSingingRedraw();
+        window.SightSingingTranscriptionReview();
+      });
+    </script>
+  </body>
+</html>

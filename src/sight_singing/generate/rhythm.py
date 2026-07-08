@@ -10,6 +10,10 @@ Each generated bar yields two views:
 R1-R6 build from beat-cells (pulse/duration, rests, eighth pairs, mixed, offbeat,
 dotted). R7 is syncopation (offbeat quarters written as tied eighths across the
 beat), R8 is beat-level triplets, R9 mixes everything.
+
+RC1-RC3 are compound meter (6/8): the beat is a dotted quarter (three eighths)
+and a bar is two beats. Every compound figure stays inside a beat (no ties/tuplets
+needed), so notation == audio there too.
 """
 
 from __future__ import annotations
@@ -24,15 +28,32 @@ E_R = (1, (("8", False), ("8", True)))       # eighth + eighth rest (offbeat)
 R_E = (1, (("8", True), ("8", False)))       # eighth rest + eighth (weak entry)
 DQE = (2, (("qd", False), ("8", False)))     # dotted quarter + eighth
 
+# --- compound beat cells (RC1-RC3, 6/8) ---------------------------------------
+# In 6/8 the beat is a dotted quarter = three eighths; a bar is two beats. Each
+# cell fills ONE beat with real note values, and every figure stays inside its
+# beat so the notation view equals the audio view (no ties/tuplets).
+CQD = (1, (("qd", False),))                              # dotted quarter (held beat)
+C3E = (1, (("8", False), ("8", False), ("8", False)))    # three eighths
+CQE = (1, (("q", False), ("8", False)))                  # quarter + eighth (long–short)
+CEQ = (1, (("8", False), ("q", False)))                  # eighth + quarter (short–long)
+CQDR = (1, (("qd", True),))                              # dotted-quarter rest (silent beat)
+CRE2 = (1, (("8", True), ("8", False), ("8", False)))    # eighth rest + two eighths
+CERE = (1, (("8", False), ("8", True), ("8", False)))    # eighth, eighth rest, eighth
+
 
 class RhythmStage:
-    def __init__(self, sid, title, count, kind, cells=(), require_any=()):
+    def __init__(
+        self, sid, title, count, kind,
+        cells=(), require_any=(), time_sig="4/4", beats=4,
+    ):
         self.id = sid
         self.title = title
         self.count = count
-        self.kind = kind  # "cells" | "syncopation" | "triplet" | "mixed"
+        self.kind = kind  # "cells" | "syncopation" | "triplet" | "mixed" | "compound"
         self.cells = cells
         self.require_any = require_any
+        self.time_sig = time_sig
+        self.beats = beats  # beat-cells per bar (compound 6/8 = 2 dotted-quarter beats)
 
 
 RHYTHM_STAGES = [
@@ -45,6 +66,14 @@ RHYTHM_STAGES = [
     RhythmStage("R7", "Ties Across Beats", 40, "syncopation"),
     RhythmStage("R8", "Triplet Pulse", 40, "triplet"),
     RhythmStage("R9", "Full Beginner Rhythm", 48, "mixed"),
+    RhythmStage("RC1", "Compound Pulse (6/8)", 9, "compound",
+                (CQD, C3E, CQE), time_sig="6/8", beats=2),
+    RhythmStage("RC2", "Compound Divisions (6/8)", 12, "compound",
+                (CQD, C3E, CQE, CEQ), require_any=(CQE, CEQ),
+                time_sig="6/8", beats=2),
+    RhythmStage("RC3", "Compound with Rests (6/8)", 12, "compound",
+                (CQD, C3E, CQDR, CRE2, CERE), require_any=(CQDR, CRE2, CERE),
+                time_sig="6/8", beats=2),
 ]
 
 RHYTHM_STAGES_BY_ID = {s.id: s for s in RHYTHM_STAGES}
@@ -241,6 +270,48 @@ def _generate_triplet(stage):
     return picked
 
 
+# --- RC1-RC3: compound meter (6/8) --------------------------------------------
+# Two dotted-quarter beats per bar, each filled by one compound beat-cell. Every
+# cell stays inside its beat, so audio == notation (plain, no ties/tuplets).
+def _passes_compound(bar, stage):
+    evs = _cell_events(bar)
+    if not any(not is_rest for _d, is_rest in evs):  # need at least one attack
+        return False
+    if stage.require_any and not any(c in stage.require_any for c in bar):
+        return False
+    return True
+
+
+def _score_compound(bar):
+    score = 0.0
+    n = _attacks(_cell_events(bar))
+    score += {0: -5, 1: -1, 2: 0.5, 3: 0.8, 4: 1.0, 5: 0.9, 6: 0.6}.get(n, 0.3)
+    if not _cell_events(bar)[0][1]:  # bar starts with sound, not a rest
+        score += 0.4
+    score += 0.3 * len(set(bar))  # reward cell variety
+    return score
+
+
+def _generate_compound(stage):
+    bars = [
+        b
+        for b in _enumerate_bars(stage.cells, beats=stage.beats)
+        if _passes_compound(b, stage)
+    ]
+    bars.sort(key=_score_compound, reverse=True)
+    picked, seen = [], set()
+    for bar in bars:
+        evs = _cell_events(bar)
+        sig = tuple(evs)
+        if sig in seen:
+            continue
+        seen.add(sig)
+        picked.append(evs)
+        if len(picked) >= stage.count:
+            break
+    return [{"audio": evs, "render": _render_plain(evs)} for evs in picked]
+
+
 # --- R9: mixed review ---------------------------------------------------------
 def _generate_mixed(stage):
     """A diverse mix pulling from the mixed, dotted, syncopation, triplet stages."""
@@ -260,6 +331,8 @@ def generate_rhythm_stage(stage):
         return _generate_syncopation(stage)
     if stage.kind == "triplet":
         return _generate_triplet(stage)
+    if stage.kind == "compound":
+        return _generate_compound(stage)
     if stage.kind == "mixed":
         return _generate_mixed(stage)
     raise ValueError(f"unknown rhythm stage kind: {stage.kind}")

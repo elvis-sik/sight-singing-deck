@@ -133,10 +133,22 @@ for B (rhythm) and C (accidentals/keys). Grouped by when it cracks._
 > mode)`, threaded from `build_library`), so a minor interval drill would strip the
 > minor tritone, not the major one (locked by a test). Shipped: harmonic-minor
 > `ND9h` and the `6 · Other Keys` G/F transfer track.
+>
+> **Phase D (2026-07-08):** advanced rhythm input closed — dotted notes (R6),
+> syncopation + corrected tie semantics (R7), and triplets on a sextuplet grid
+> (R8/R9). `5 · Rhythm` now runs the full R1–R9 ladder.
+>
+> **Phase E (2026-07-08):** **compound meter (6/8)** shipped as rungs RC1–RC3. The
+> editor grid is meter-aware (simple / triplet / **compound dotted-quarter beat**),
+> `timeSig` now threads through `card_data` from the stage, and the renderer beams
+> in threes and splits 6/8 measures at six eighths. Solfège-first entry is
+> **declined** (staff transcription is the target skill), so the rhythm-dictation
+> input work is complete.
 
 **Cleared (checked, provably fine):** deck-id collisions — every id computed, no
 overlap within the dictation tree or against sight-singing (91-id gap); model ids
-distinct. The hardcoded `4/4` is load-bearing single-meter, not a crammed-bar bug.
+distinct. `timeSig` is threaded per-card (4/4 for R1–R9 + melodic, 6/8 for RC),
+no longer hardcoded.
 `quality_score`'s tonic test (`mel[-1] % 7 in (0,2,4)`) is mode-agnostic and
 correct (la-minor shares triad indices with major). Legacy MVP audio constants are
 a dead path. `tonic_octave_for` raises loudly on an unknown clef, not silently.
@@ -170,10 +182,16 @@ a dead path. `tonic_octave_for` raises loudly on an unknown clef, not silently.
   D-2**: `_renderer.js` now counts a triplet eighth as 2/3 of a beat (×3 integer
   scale) so a bar of triplets no longer gets a spurious mid-triplet barline + rest
   padding. This also cleaned up the already-shipped sight-singing R8/R9 cards.
-- **`capacityForData` assumes a UNITS_PER_BEAT-unit beat** — `_transcription.js`.
-  Now parameterized (2 duple / 6 triplet), but still assumes a *simple* meter (the
-  beat is a plain note value). Wrong for compound meters (6/8's beat is a dotted
-  quarter). Only bites once compound-meter content ships — none exists.
+- ✅ **The grid assumed a simple meter (beat = a plain note value)** — fixed in
+  **Phase E**. `applyPitchContext` now reads the target's `timeSig` and picks one of
+  three grids: *simple* (quarter beat), *triplet* (quarter beat + sextuplet
+  subdivision), or *compound* (`x/8`, x a multiple of 3 → a **dotted-quarter beat**,
+  `EIGHTH_UNITS = 2`, `BEATS_PER_BAR = x/3`, and a compound `BEAT_FRACTION` where an
+  eighth is ⅓ of a beat). `BAR_UNITS = BEATS_PER_BAR × UNITS_PER_BEAT` and the
+  eighth-grid alignment uses `EIGHTH_UNITS` (not `UNITS_PER_BEAT/2`), so every
+  meter's math is exact. The renderer beams per dotted-quarter in compound meter.
+  Shipped as rungs **RC1–RC3** (6/8). Still open: `9/8`/`12/8` are handled by the
+  same code path but have no generated content yet.
 
 ### Bites at Phase C (accidentals / keys) — the main cluster — ✅ all closed in Phase C
 - ✅ **Grading compares exact pitch strings, but the editor only speaks diatonic

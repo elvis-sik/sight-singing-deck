@@ -321,8 +321,21 @@
     return note;
   }
 
-  /* Beam consecutive eighth NOTES that sit inside the same quarter beat. */
-  function beamGroups(VF, events, notes) {
+  /* Eighth-note units in one beat, for beam grouping. Simple meters beam per
+     quarter (2 units); compound meters (x/8, x a multiple of 3) beam per dotted
+     quarter (3 units) so 6/8 reads as two groups of three, not three of two. */
+  function beamBeatUnits(timeSig) {
+    var parts = String(timeSig || "4/4").split("/");
+    var num = parseInt(parts[0], 10);
+    var den = parseInt(parts[1], 10);
+    if (den === 8 && num % 3 === 0 && num >= 6) return 3;
+    return 2;
+  }
+
+  /* Beam consecutive eighth NOTES that sit inside the same beat. `beatUnits` is the
+     beat length in eighth-units (2 simple, 3 compound). */
+  function beamGroups(VF, events, notes, beatUnits) {
+    var bu = beatUnits || 2;
     var beams = [];
     var unit = 0;
     var group = [];
@@ -342,7 +355,7 @@
       // Triplet members are beamed separately (with their tuplet); skip here.
       var isEighthNote =
         event.kind === "note" && event.duration === "8" && !event.tuplet;
-      var startsBeat = unit % 2 === 0;
+      var startsBeat = unit % bu === 0;
 
       if (event.tuplet) {
         flush();
@@ -353,7 +366,7 @@
         flush();
       }
       unit += units;
-      if (isEighthNote && unit % 2 === 0) flush();
+      if (isEighthNote && unit % bu === 0) flush();
     }
     flush();
     return beams;
@@ -488,7 +501,9 @@
       notes.push(note);
     }
 
-    var beams = beamGroups(VF, data.events, notes);
+    var beams = beamGroups(
+      VF, data.events, notes, beamBeatUnits(data.timeSig)
+    );
     var tup = tupletGroups(VF, data.events, notes);
     var ties = tieGroups(VF, data.events, notes);
 
