@@ -100,6 +100,11 @@ def melody_to_card_fields(melody: dict[str, Any]) -> dict[str, str]:
             "drone": drone_file,
         },
     }
+    # Rhythm-dictation cards grade by sounded rhythm (pitch-agnostic, rest-spelling
+    # equivalent). Only emitted when set, so melodic MelodyJSON stays unchanged.
+    grade_mode = melody.get("grade_mode")
+    if grade_mode:
+        payload["gradeMode"] = str(grade_mode)
 
     return {
         "MelodyJSON": json.dumps(payload, separators=(",", ":")),

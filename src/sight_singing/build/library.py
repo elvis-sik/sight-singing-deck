@@ -242,17 +242,31 @@ def build_error_library(
 _RHYTHM_PITCH = {"treble": "B4", "bass": "D3"}
 
 
-def build_rhythm_library(clef: str = "treble") -> list[dict[str, object]]:
+def build_rhythm_library(
+    clef: str = "treble",
+    stage_ids: tuple[str, ...] | None = None,
+    grade_mode: str | None = None,
+) -> list[dict[str, object]]:
     """Rhythm-first cards: one bar per card on a single repeated pitch.
 
     Reuses the melody-record shape (so ``melody_to_card_fields`` and the audio
     renderer work unchanged); the pitch is constant and the interest is timing.
+
+    ``stage_ids`` restricts to those rhythm stages (rhythm *dictation* ships only
+    the editor-safe basic values R1-R5 — no dotted/tie/triplet input yet).
+    ``grade_mode`` (e.g. "rhythm") tags the records so the transcription editor
+    grades by sounded rhythm (pitch-agnostic); sight-singing rhythm cards are
+    Sing-only and leave it unset.
     """
     from sight_singing.generate.rhythm import RHYTHM_STAGES, generate_rhythm_stage
 
     pitch = _RHYTHM_PITCH.get(clef, "B4")
+    stages = RHYTHM_STAGES
+    if stage_ids is not None:
+        wanted = set(stage_ids)
+        stages = [s for s in RHYTHM_STAGES if s.id in wanted]
     library: list[dict[str, object]] = []
-    for stage in RHYTHM_STAGES:
+    for stage in stages:
         for bar in generate_rhythm_stage(stage):
             audio = bar["audio"]
             durations = [d for d, _rest in audio]
@@ -282,6 +296,7 @@ def build_rhythm_library(clef: str = "treble") -> list[dict[str, object]]:
                     "key": "C",
                     "mode": "major",
                     "tonic": pitch,
+                    "grade_mode": grade_mode,
                     "tags": [
                         "sight_singing",
                         "track::rhythm",

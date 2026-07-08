@@ -108,8 +108,17 @@ for B (rhythm) and C (accidentals/keys). Grouped by when it cracks._
 > threading**, **`_melody_id` harmonic-minor distinctness** (zero churn to existing
 > ids), the dead **`is_tendency_tone`**, and the **localStorage fallback**. Still
 > open: editor accidental *input* + key-sig display + the G/F keys track (Phase C);
-> the tritone-mode for minor interval drills (with C); every Phase-B rhythm item.
-> Items below are marked ✅ where done.
+> the tritone-mode for minor interval drills (with C). Items below are marked ✅
+> where done.
+>
+> **Phase B (2026-07-07):** the **sounded-rhythm grader is now wired** (rhythm
+> cards grade pitch-agnostic + rest-spelling-equivalent — a half rest == two
+> quarter rests; verified end to end) and the RD track (R1–R5) ships. Still open:
+> dotted/tie/triplet editor *input* (R6–R9) and the triplet unit-math + compound
+> meter — deferred to the advanced-rhythm work. Also caught + fixed a new fossil
+> while here: **`renderMeta` mislabelled minor cards as "major"** (`data.mode ===
+> "minor"` never matched our `natural_minor`/`harmonic_minor`), and the rhythm
+> badge now comes from `gradeMode`.
 
 **Cleared (checked, provably fine):** deck-id collisions — every id computed, no
 overlap within the dictation tree or against sight-singing (91-id gap); model ids

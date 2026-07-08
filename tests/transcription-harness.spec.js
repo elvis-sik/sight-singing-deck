@@ -321,3 +321,21 @@ test("review page compares the saved answer with the target", async ({
   expect(counts.reds).toBeGreaterThan(0);
   expect(counts.targetSvgs).toBe(1);
 });
+
+test("rhythm dictation grades by sounded rhythm (rest spelling + pitch agnostic)", async ({
+  page,
+}) => {
+  // Target: quarter, HALF REST, quarter (B4). Seeded answer spells the half rest
+  // as two quarter rests and puts the notes on G4. Exact-match would fail both;
+  // the sounded grader must call it perfect.
+  await page.goto("/debug/review-harness-rhythm.html");
+  await page.waitForSelector("#transcribe-target svg");
+
+  await expect(page.locator("#transcribe-result")).toContainText(
+    "Perfect — the rhythm matches"
+  );
+  const parsedMode = await page.evaluate(
+    () => window.SightSingingParseData().gradeMode
+  );
+  expect(parsedMode).toBe("rhythm");
+});
