@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Transcription Harness · Dotted rhythm (R6)</title>
+    <link rel="stylesheet" href="../assets/card_styles.css" />
+    <link rel="stylesheet" href="harness.css" />
+  </head>
+  <body class="card">
+    <button type="button" class="ss-btn harness-night-toggle" id="night-toggle">Night mode</button>
+    <p class="harness-title">Transcribe · front · dotted rhythm (R6)</p>
+
+    <script>
+      window.sightSingingMelodyId = "debug_dotted";
+    </script>
+
+    <div class="ss-wrap">
+      <div id="melody-data" style="display:none;">
+        {"version":2,"clef":"treble","key":"C","mode":"major","keySig":"C","keyAccidentals":{"C":0,"D":0,"E":0,"F":0,"G":0,"A":0,"B":0},"timeSig":"4/4","gradeMode":"rhythm","notes":["B4","B4","B4","B4","B4"],"durations":["q","8","8","qd","8"],"bars":[{"events":[{"kind":"note","duration":"q","pitch":"B4"},{"kind":"note","duration":"8","pitch":"B4"},{"kind":"note","duration":"8","pitch":"B4"},{"kind":"note","duration":"qd","pitch":"B4"},{"kind":"note","duration":"8","pitch":"B4"}]}],"degrees":[]}
+      </div>
+      <div class="ss-meta" id="melody-meta" data-ss-badge="Rhythm"></div>
+      <div class="ss-panel ss-editor-panel">
+        <div id="transcribe-editor"></div>
+      </div>
+      <div id="transcribe-ui"></div>
+      <p class="ss-prompt ss-prompt-transcribe">Write the rhythm you hear.</p>
+    </div>
+
+    <p class="harness-nav">
+      <a href="transcription-harness.html">Transcribe</a> ·
+      <a href="review-harness-dotted.html">Dotted review</a>
+    </p>
+
+    <script src="../assets/_vexflow.js"></script>
+    <script src="../assets/_renderer.js"></script>
+    <script src="../assets/_transcription.js"></script>
+    <script>
+      document.getElementById("night-toggle").addEventListener("click", function () {
+        document.body.classList.toggle("nightMode");
+        document.body.classList.toggle("night_mode");
+        if (window.SightSingingRedraw) window.SightSingingRedraw();
+        if (window.SightSingingTranscriptionRefresh) window.SightSingingTranscriptionRefresh();
+      });
+    </script>
+  </body>
+</html>

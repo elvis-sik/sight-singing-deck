@@ -36,8 +36,14 @@ covers only the parallel dictation path.
 >   overrides), so a bare F on the F line matches an F♯ target in G major while a
 >   bare G is a genuine miss against the harmonic-minor `si`.
 >
-> **Still deferred:** dotted/tie/triplet rhythm *input* in the editor (blocks the
-> advanced rhythm rungs) and solfège-first answer entry.
+> - **Phase D (in progress)** adds **dotted-note input** — a dot modifier on the
+>   editor's duration bar (rhythm cards only) with a beat-alignment fix so a dotted
+>   quarter (3 eighth-units) can start on any beat. Unblocks the **dotted rung R6**,
+>   now in `5 · Rhythm` (R1–R6).
+>
+> **Still deferred:** tie/syncopation input (R7 — needs off-beat note starts),
+> triplet input (R8/R9 — needs a 1/3 sub-beat grid), compound meter, and
+> solfège-first answer entry.
 
 ## Why a separate curriculum
 

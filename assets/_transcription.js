@@ -128,15 +128,35 @@
   var capacity = BAR_UNITS;
   var DURATION_UNITS = { "8": 1, q: 2, h: 4, w: 8 };
   var DURATION_ORDER = ["w", "h", "q", "8"];
-  var DURATION_LABELS = { "8": "Eighth", q: "Quarter", h: "Half", w: "Whole" };
+  var DURATION_LABELS = {
+    "8": "Eighth", q: "Quarter", h: "Half", w: "Whole",
+    qd: "Dotted quarter", hd: "Dotted half",
+  };
+  // Where a note of each duration may START, in eighth-units. Binary values align
+  // to their own length (a half only on units 0/4); DOTTED values align to the beat
+  // (2) — a dotted quarter is 3 units, so `% units` would wrongly forbid a beat-2
+  // start (4 % 3 ≠ 0). Only the dotted values quarter/half are offered (dotted
+  // eighth = 1.5 units would break the integer grid).
+  var DURATION_ALIGN = { "8": 1, q: 2, h: 4, w: 8, qd: 2, hd: 2 };
+  // Which base durations the dot modifier applies to (integer-unit only).
+  var DOTTABLE = { q: true, h: true };
 
   var state = {
     mode: "note", // note | rest | erase
     duration: "q",
+    dotted: false, // dot modifier (rhythm cards) — applies to quarter/half
     accidental: "", // "" (diatonic, follows key sig) | "#" | "b" | "n"
     events: [],
     history: [],
   };
+
+  // The duration actually placed: the base value, dotted when the dot modifier is
+  // on AND the base is dottable (quarter/half). Used everywhere placement happens.
+  function effectiveDuration() {
+    return state.dotted && DOTTABLE[state.duration]
+      ? state.duration + "d"
+      : state.duration;
+  }
 
   /* Geometry captured after each VexFlow render. */
   var geo = null;
@@ -176,8 +196,38 @@
     return "ss-transcribe:" + melodyId();
   }
 
+  // Eighth-units for a duration, honouring a trailing "d" (dotted = 1.5x). "qd" → 3,
+  // "hd" → 6 (both integers); dotted eighth is never offered, so no fractions arise.
   function durationUnits(duration) {
-    return DURATION_UNITS[String(duration || "")] || 0;
+    var s = String(duration || "");
+    var dotted = s.charAt(s.length - 1) === "d";
+    var base = DURATION_UNITS[dotted ? s.slice(0, -1) : s] || 0;
+    return dotted ? base * 1.5 : base;
+  }
+
+  // Start-position granularity for a duration (see DURATION_ALIGN).
+  function durationAlign(duration) {
+    return DURATION_ALIGN[String(duration || "")] || 1;
+  }
+
+  function isDotted(duration) {
+    var s = String(duration || "");
+    return s.charAt(s.length - 1) === "d";
+  }
+  function baseDuration(duration) {
+    var s = String(duration || "");
+    return isDotted(s) ? s.slice(0, -1) : s;
+  }
+  // Attach an augmentation dot to a VexFlow note (the API moved between versions).
+  function addDot(note) {
+    var VF = window.Vex && window.Vex.Flow;
+    if (VF && VF.Dot && typeof VF.Dot.buildAndAttach === "function") {
+      VF.Dot.buildAndAttach([note], { all: true });
+    } else if (typeof note.addDotToAll === "function") {
+      note.addDotToAll();
+    } else if (typeof note.addDot === "function") {
+      note.addDot(0);
+    }
   }
 
   function eventUnits(event) {
@@ -204,7 +254,7 @@
     var units = durationUnits(duration);
     if (!units) return false;
     if (startUnit < 0 || startUnit + units > capacity) return false;
-    if (startUnit % units !== 0) return false;
+    if (startUnit % durationAlign(duration) !== 0) return false;
     for (var i = startUnit; i < startUnit + units; i++) {
       if (occupied[i]) return false;
     }
@@ -318,13 +368,14 @@
     return out;
   }
 
-  /* Valid start units for the currently selected duration. */
+  /* Valid start units for the currently selected (possibly dotted) duration. */
   function validStarts() {
     var occupied = occupiedUnits(state.events);
-    var step = durationUnits(state.duration);
+    var dur = effectiveDuration();
+    var step = durationAlign(dur); // step by the alignment grid, not the length
     var out = [];
-    for (var start = 0; start + step <= capacity; start += step) {
-      if (durationFitsAt(start, state.duration, occupied)) out.push(start);
+    for (var start = 0; start + durationUnits(dur) <= capacity; start += step) {
+      if (durationFitsAt(start, dur, occupied)) out.push(start);
     }
     return out;
   }
@@ -613,6 +664,22 @@
         durbar.appendChild(btn);
       })(durations[i]);
     }
+    // Dot modifier — only for rhythm cards (the melodic spine is even-rhythm, so it
+    // would be dead weight there). Applies to the quarter/half; inert (dimmed) on
+    // eighth/whole, whose dotted values don't land on the integer grid.
+    if (curGradeMode === "rhythm" || curGradeMode === "sounded") {
+      var dotBtn = buildButton(
+        "transcribe-dot",
+        "ss-btn ss-btn-duration ss-btn-dot",
+        '<span class="ss-dot-glyph" aria-hidden="true">♩.</span>' +
+          '<span class="ss-btn-caption">Dotted</span>',
+        function () {
+          window.SightSingingTranscriptionToggleDot();
+        }
+      );
+      dotBtn.setAttribute("aria-label", "dotted note");
+      durbar.appendChild(dotBtn);
+    }
     ui.appendChild(durbar);
 
     var tools = document.createElement("div");
@@ -750,6 +817,17 @@
         "</span>";
     }
 
+    var dotBtn = document.getElementById("transcribe-dot");
+    if (dotBtn) {
+      // Active when the dot is on; dimmed when the current base can't take a dot
+      // (eighth/whole) — a no-op there.
+      var dottable = !!DOTTABLE[state.duration];
+      dotBtn.className =
+        "ss-btn ss-btn-duration ss-btn-dot" +
+        (state.dotted && dottable ? " ss-tool-active" : "") +
+        (dottable ? "" : " ss-btn-dot-disabled");
+    }
+
     var accbar = document.getElementById("transcribe-accbar");
     if (accbar) {
       // Accidentals apply to notes only — dim in rest/erase mode.
@@ -805,7 +883,7 @@
           " of " +
           nbeats +
           " beats</strong> filled · " +
-          DURATION_LABELS[state.duration].toLowerCase() +
+          (DURATION_LABELS[effectiveDuration()] || state.duration).toLowerCase() +
           (state.mode === "rest" ? " rest" : "") +
           " selected";
       }
@@ -965,16 +1043,19 @@
       var slot = slots[i];
       var note;
       if (slot.kind === "event") {
+        var evBase = baseDuration(slot.event.duration);
         if (slot.event.kind === "rest") {
           note = new VF.StaveNote({
             clef: clef,
             keys: [restKey()],
-            duration: slot.event.duration + "r",
+            duration: evBase + "r",
           });
+          if (isDotted(slot.event.duration)) addDot(note);
         } else {
           /* "G4" -> "g/4"; an explicit accidental bakes into the key ("g#/4") and
              also gets a drawn glyph. Diatonic notes carry none — the key signature
-             at the stave head supplies the accidental. */
+             at the stave head supplies the accidental. A dotted value draws with the
+             base note value + an augmentation dot. */
           var evAcc = slot.event.acc || "";
           var accVex = evAcc === "#" ? "#" : evAcc === "b" ? "b" : "";
           note = new VF.StaveNote({
@@ -985,11 +1066,12 @@
                 "/" +
                 slot.event.pitch.slice(1),
             ],
-            duration: slot.event.duration,
+            duration: evBase,
           });
           if (evAcc === "#" || evAcc === "b" || evAcc === "n") {
             note.addModifier(new VF.Accidental(evAcc), 0);
           }
+          if (isDotted(slot.event.duration)) addDot(note);
         }
       } else {
         note = new VF.StaveNote({
@@ -1153,13 +1235,18 @@
     return geo.gridLeft + unit * geo.unitPx;
   }
 
-  /* Which duration-sized tile the pointer sits in, on the uniform grid. */
-  function tileStartForX(x, units) {
-    var maxTile = Math.floor(capacity / units) - 1;
-    var tile = Math.floor((x - geo.gridLeft) / (geo.unitPx * units));
-    if (tile < 0) tile = 0;
-    if (tile > maxTile) tile = maxTile;
-    return tile * units;
+  /* Where the pointer's placement should START, snapped to the duration's
+     ALIGNMENT grid (not its length): a dotted quarter is 3 units but starts on the
+     beat (every 2 units), so snapping by length would offer illegal starts. For
+     binary durations align === units, so this is the old tile behaviour. */
+  function tileStartForX(x, duration) {
+    var align = durationAlign(duration);
+    var units = durationUnits(duration);
+    var maxStart = capacity - units;
+    var start = Math.floor((x - geo.gridLeft) / (geo.unitPx * align)) * align;
+    if (start < 0) start = 0;
+    if (start > maxStart) start = Math.floor(maxStart / align) * align;
+    return start;
   }
 
   // geo.yBottom is the y of staff line 4, which is the pitch clefBottomOrdinal()
@@ -1201,8 +1288,9 @@
      * edge of the highlight box. Painting over existing events replaces
      * them, so no eraser round-trip is needed for corrections.
      */
-    var units = durationUnits(state.duration);
-    var best = tileStartForX(x, units);
+    var dur = effectiveDuration();
+    var units = durationUnits(dur);
+    var best = tileStartForX(x, dur);
 
     var replaces = [];
     for (var i = 0; i < state.events.length; i++) {
@@ -1216,6 +1304,7 @@
       type: state.mode === "rest" ? "rest" : "note",
       startUnit: best,
       units: units,
+      duration: dur,
       replaces: replaces,
     };
     if (ghost.type === "note") {
@@ -1359,7 +1448,11 @@
     if (!replacing) spanAttrs["stroke-dasharray"] = "4 3";
     svgEl("rect", spanAttrs, overlay);
 
-    var beatText = DURATION_LABELS[state.duration].toLowerCase();
+    // The placed duration may be dotted; the notehead/stem/flag shape follows the
+    // BASE value while the dot is an extra glyph and the label reads "dotted …".
+    var ghostBase = baseDuration(ghost.duration);
+    var ghostDotted = isDotted(ghost.duration);
+    var beatText = (DURATION_LABELS[ghost.duration] || ghostBase).toLowerCase();
 
     if (ghost.type === "rest") {
       var midLineY = geo.yBottom - 4 * geo.halfStep; // middle staff line
@@ -1377,8 +1470,14 @@
         },
         overlay
       );
+      if (ghostDotted) {
+        svgEl("circle", {
+          cx: spanX + spanW / 2 + 11, cy: restY + 2.75, r: 1.9,
+          fill: accent, "fill-opacity": 0.9,
+        }, overlay);
+      }
       showGhostLabel(
-        DURATION_LABELS[state.duration] + " rest",
+        (DURATION_LABELS[ghost.duration] || ghostBase) + " rest",
         spanX + spanW / 2,
         geo.staveTopY - 24,
         null
@@ -1426,13 +1525,20 @@
       },
       overlay
     );
-    if (state.duration === "h" || state.duration === "w") {
+    if (ghostBase === "h" || ghostBase === "w") {
       head.setAttribute("fill-opacity", "0.28");
       head.setAttribute("stroke", accent);
       head.setAttribute("stroke-width", "2.4");
     }
+    // Augmentation dot, just right of (and slightly above) the notehead.
+    if (ghostDotted) {
+      svgEl("circle", {
+        cx: headX + 10, cy: noteY - 2, r: 1.9,
+        fill: accent, "fill-opacity": 0.9,
+      }, overlay);
+    }
 
-    if (state.duration !== "w") {
+    if (ghostBase !== "w") {
       var stemUp = ordinalOf(ghost.pitch) < geo.refOrdinal + 4; // below middle line
       svgEl(
         "rect",
@@ -1447,7 +1553,7 @@
         },
         overlay
       );
-      if (state.duration === "8") {
+      if (ghostBase === "8") {
         var fx = stemUp ? headX + 6.3 : headX - 4.5;
         var fy = stemUp ? noteY - 32 : noteY + 32;
         var dir = stemUp ? 1 : -1;
@@ -1587,13 +1693,13 @@
         ghost.type === "rest"
           ? {
               kind: "rest",
-              duration: state.duration,
+              duration: ghost.duration || state.duration,
               startUnit: ghost.startUnit,
             }
           : {
               kind: "note",
               pitch: ghost.pitch,
-              duration: state.duration,
+              duration: ghost.duration || state.duration,
               startUnit: ghost.startUnit,
               acc: ghost.acc || "",
             }
@@ -1737,6 +1843,7 @@
     state.history = [];
     state.mode = "note";
     state.duration = "q";
+    state.dotted = false;
     state.accidental = "";
 
     if (!supportedData(data)) {
@@ -1831,6 +1938,15 @@
     return false;
   };
 
+  window.SightSingingTranscriptionToggleDot = function () {
+    state.dotted = !state.dotted;
+    // Dots apply to placed notes/rests; make sure we're not in erase mode.
+    if (state.dotted && state.mode === "erase") state.mode = "note";
+    hover = null;
+    renderAll();
+    return false;
+  };
+
   window.SightSingingTranscriptionSetAccidental = function (acc) {
     var next = acc === "#" || acc === "b" || acc === "n" ? acc : "";
     // Toggle: tapping the active accidental clears it (back to diatonic).
@@ -1884,6 +2000,7 @@
       return {
         mode: state.mode,
         duration: state.duration,
+        dotted: state.dotted,
         accidental: state.accidental,
         events: state.events.map(cloneEvent),
         historyDepth: state.history.length,
