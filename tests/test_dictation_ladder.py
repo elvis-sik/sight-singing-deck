@@ -21,6 +21,9 @@ from __future__ import annotations
 import unittest
 
 from sight_singing.curriculum.stages import (
+    DICTATION_INTERVAL_STAGES,
+    DICTATION_MINOR_HARMONIC_STAGES,
+    DICTATION_MINOR_STAGES,
     DICTATION_PRIMING_SINGLETONS,
     DICTATION_STAGES,
 )
@@ -130,6 +133,61 @@ class DictationLadderTest(unittest.TestCase):
         # Then it climbs again.
         self.assertEqual(by_id["DD8"].length, 5)
         self.assertEqual(by_id["DD9"].length, 6)
+
+
+class MinorDictationTest(unittest.TestCase):
+    """The natural-minor ladder mirrors the major invariants."""
+
+    def setUp(self) -> None:
+        self.generated = {s.id: generate_stage(s) for s in DICTATION_MINOR_STAGES}
+
+    def test_every_stage_yields(self) -> None:
+        for stage in DICTATION_MINOR_STAGES:
+            with self.subTest(stage=stage.id):
+                self.assertGreaterEqual(len(self.generated[stage.id]), 6)
+
+    def test_no_repeats_and_no_interval_past_a_fifth(self) -> None:
+        for stage in DICTATION_MINOR_STAGES:
+            self.assertLessEqual(stage.max_step, 4, f"{stage.id} allows a 6th+")
+            for mel in self.generated[stage.id]:
+                with self.subTest(stage=stage.id, mel=mel):
+                    self.assertTrue(all(a != b for a, b in zip(mel, mel[1:])))
+                    self.assertTrue(
+                        all(
+                            abs(
+                                diatonic_semitone(b, "natural_minor")
+                                - diatonic_semitone(a, "natural_minor")
+                            )
+                            <= PERFECT_FIFTH_SEMITONES
+                            for a, b in zip(mel, mel[1:])
+                        ),
+                        f"{stage.id} leap wider than a P5: {mel}",
+                    )
+
+    def test_nd8_every_item_resolves_ti_to_do(self) -> None:
+        # Minor's leading tone ti sits at index 1; ti->do is index 1 -> +1.
+        for mel in self.generated["ND8"]:
+            with self.subTest(mel=mel):
+                self.assertTrue(
+                    _has_resolution(mel, 1, +1), f"ND8 item has no ti->do: {mel}"
+                )
+
+    def test_harmonic_capstone_resolves_si_to_la(self) -> None:
+        # ND9h is deferred from the built deck (si = G# needs accidental input),
+        # but the spec must still resolve the raised 7 (index 6) up in every item.
+        for stage in DICTATION_MINOR_HARMONIC_STAGES:
+            for mel in generate_stage(stage):
+                with self.subTest(mel=mel):
+                    self.assertTrue(_has_resolution(mel, 6, +1))
+
+
+class IntervalDictationTest(unittest.TestCase):
+    def test_each_interval_stage_yields(self) -> None:
+        # IVD8 (octave) is inherently small (only do<->do' and ti<->ti' exist in
+        # the one-octave-plus pool), so the floor is 4, not 6.
+        for stage in DICTATION_INTERVAL_STAGES:
+            with self.subTest(stage=stage.id):
+                self.assertGreaterEqual(len(generate_stage(stage)), 4)
 
 
 if __name__ == "__main__":

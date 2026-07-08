@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 """Build the melodic-dictation .apkg (its own deck tree and note type).
 
-Dictation is a curriculum in its own right (see DICTATION_CURRICULUM.md, rev 3):
-ordered by phrase length + working memory + interval audibility, with its own
-pool. This builds the PITCH-ONLY, even-rhythm spine — a priming floor (DP0 tonic
-echo, DP1/DP2 two-note rungs) then DD1-DD9 — realized in C major, treble clef,
-into a top-level ``Dictation`` deck tree. Each melody is one Dictate card (hear ->
-notate) on the single-template dictation note type, carrying per-stage
-listen-count thresholds.
+Dictation is a curriculum in its own right (see DICTATION_CURRICULUM.md): ordered
+by phrase length + working memory + interval audibility, with its own pool. These
+are the PITCH-ONLY, even-rhythm strands, each a track under a top-level
+``Dictation`` deck tree:
+
+  1 · Major     — priming floor (DP0-DP2) then DD1-DD9, C major, treble.
+  2 · Minor     — NDP0 then ND1-ND9 (natural minor), A minor, treble.
+  3 · Intervals — IVD2-IVD8, hear one interval, C major, treble.
+
+Each melody is one Dictate card (hear -> notate) carrying per-stage listen-count
+thresholds. (Harmonic-minor ND9h, other keys, bass clef, and rhythm dictation are
+deferred — they need editor accidental input / a rests grader; see the doc.)
 
 Run:  python scripts/build_dictation_deck.py [--limit N]
 """
@@ -17,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parents[1]
@@ -38,6 +44,9 @@ from sight_singing.audio_assets import build_library_audio, library_audio_basena
 from sight_singing.build.library import build_library, realize_stage_melody
 from sight_singing.card_data import melody_to_card_fields
 from sight_singing.curriculum.stages import (
+    DICTATION_INTERVAL_STAGES,
+    DICTATION_MINOR_PRIMING_SINGLETONS,
+    DICTATION_MINOR_STAGES,
     DICTATION_PRIMING_SINGLETONS,
     DICTATION_STAGES,
     Stage,
@@ -48,103 +57,162 @@ DICT_DECK_BASE = 2_948_817_900
 
 _DICT_ROOT_DESC = (
     "Melodic dictation — hear a short melody, then notate it. Its OWN curriculum, "
-    "ordered by phrase length and memory (not vocal difficulty). Work top to bottom: "
-    "the priming floor (DP0-DP2) first, then DD1-DD9. Every card establishes the key "
+    "ordered by phrase length and memory (not vocal difficulty). Work a track top "
+    "to bottom: Major first (priming floor, then the ladder), then Minor; the "
+    "Intervals track drills one interval at a time. Every card establishes the key "
     "and the melody is replayable; the <b>listen count</b> on the front is your "
     "effort gauge — grade by how many replays it took."
 )
+_TRACK_DESCS = {
+    "1 · Major": "The core dictation ladder in C major. Start here, top to bottom.",
+    "2 · Minor": "The same ladder in (la-based) A minor. After Major feels steady.",
+    "3 · Intervals": "Hear one interval, notate it — dip in to reinforce a leap.",
+}
 
-# DP0 is a fixed set of single-degree echoes (a lone note isn't a generatable
-# melody, so it isn't a Stage); this carrier lets us realize the singletons
-# through the normal pipeline.
-_DP0 = Stage(
-    "DP0", "Tonic Echo", "dictation",
-    pool=(0, 2, 4), start_pool=(0, 2, 4), end_pool=(0, 2, 4),
-    max_step=4, count=len(DICTATION_PRIMING_SINGLETONS), length=1,
-    notes="Hear the key, identify one degree (do/mi/so).",
-)
+
+def _priming_carrier(stage_id: str, title: str) -> Stage:
+    """A length-1 carrier so the fixed single-degree echoes realize normally.
+
+    A lone note isn't a generatable melody, so DP0/NDP0 aren't Stages; this lets
+    us push the singletons through realize_stage_melody in any key/mode/clef.
+    """
+    return Stage(
+        stage_id, title, "dictation",
+        pool=(0, 2, 4), start_pool=(0, 2, 4), end_pool=(0, 2, 4),
+        max_step=4, count=3, length=1,
+        notes="Hear the key, identify one pillar degree.",
+    )
+
+
+@dataclass(frozen=True)
+class DictTrack:
+    segment: str          # subdeck under Dictation, e.g. "1 · Major"
+    tag: str              # stable tag slug
+    key_name: str
+    mode: str
+    clef: str
+    priming_id: str       # "DP0" / "NDP0" (empty ⇒ no priming rung)
+    priming_title: str
+    priming_singletons: tuple[tuple[int, ...], ...]
+    stages: list[Stage]
+    deck_id_base: int
+
+
+TRACKS: list[DictTrack] = [
+    DictTrack(
+        "1 · Major", "dictation_major", "C", "major", "treble",
+        "DP0", "Tonic Echo", DICTATION_PRIMING_SINGLETONS, DICTATION_STAGES,
+        DICT_DECK_BASE + 10,
+    ),
+    DictTrack(
+        "2 · Minor", "dictation_minor", "A", "natural_minor", "treble",
+        "NDP0", "Tonic Echo (minor)", DICTATION_MINOR_PRIMING_SINGLETONS,
+        DICTATION_MINOR_STAGES, DICT_DECK_BASE + 40,
+    ),
+    DictTrack(
+        "3 · Intervals", "dictation_intervals", "C", "major", "treble",
+        "", "", (), DICTATION_INTERVAL_STAGES, DICT_DECK_BASE + 70,
+    ),
+]
 
 
 def _listen_targets(length: int) -> dict[str, int]:
-    """Per-stage listen-count thresholds, scaling with phrase length.
-
-    ``good`` = replays at/under which the recall was easy; ``hard`` = the ceiling
-    before it's really an ``Again``. Longer phrases earn more slack. Editable per
-    card (the field ships the JSON).
-    """
+    """Per-stage listen-count thresholds, scaling with phrase length."""
     good = max(1, length - 2)
     hard = max(good + 1, length)
     return {"good": good, "hard": hard}
 
 
-def _ordered_records() -> list[tuple[str, dict[str, object]]]:
-    """(stage_id, record) in curriculum order: DP0 singletons, then DD stages."""
+def _track_stage_order(track: DictTrack) -> list[tuple[str, str, int]]:
+    """(stage_id, title, length) in ladder order, priming rung first if present."""
+    out: list[tuple[str, str, int]] = []
+    if track.priming_id:
+        out.append((track.priming_id, track.priming_title, 1))
+    out += [(s.id, s.title, s.length) for s in track.stages]
+    return out
+
+
+def _track_records(track: DictTrack) -> list[tuple[str, dict[str, object]]]:
+    """(stage_id, realized record) for a whole track."""
     records: list[tuple[str, dict[str, object]]] = []
-    for degrees in DICTATION_PRIMING_SINGLETONS:
-        rec = realize_stage_melody(_DP0, degrees, key_name="C", mode="major", clef="treble")
-        records.append(("DP0", rec))
-    for stage in DICTATION_STAGES:
-        lib = build_library([stage], key_name="C", mode="major", clef="treble")
+    if track.priming_id:
+        carrier = _priming_carrier(track.priming_id, track.priming_title)
+        for degrees in track.priming_singletons:
+            rec = realize_stage_melody(
+                carrier, degrees,
+                key_name=track.key_name, mode=track.mode, clef=track.clef,
+            )
+            records.append((track.priming_id, rec))
+    for stage in track.stages:
+        lib = build_library(
+            [stage], key_name=track.key_name, mode=track.mode, clef=track.clef
+        )
         for rec in lib:
             records.append((stage.id, rec))
     return records
 
 
-def _stage_order() -> list[tuple[str, str, int]]:
-    """(stage_id, title, length) for every stage, DP0 first, in ladder order."""
-    out = [("DP0", _DP0.title, _DP0.length)]
-    out += [(s.id, s.title, s.length) for s in DICTATION_STAGES]
-    return out
-
-
 def build(out_path: Path, base_deck_name: str, assets_dir: Path, limit: int | None) -> int:
-    records = _ordered_records()
-    if limit is not None:
-        # Keep it per-stage so a smoke build still spans the ladder.
-        by_stage: dict[str, int] = {}
-        trimmed: list[tuple[str, dict[str, object]]] = []
-        for sid, rec in records:
-            n = by_stage.get(sid, 0)
-            if n < limit:
-                trimmed.append((sid, rec))
-                by_stage[sid] = n + 1
-        records = trimmed
+    track_records: list[tuple[DictTrack, list[tuple[str, dict[str, object]]]]] = []
+    for track in TRACKS:
+        recs = _track_records(track)
+        if limit is not None:
+            by_stage: dict[str, int] = {}
+            trimmed = []
+            for sid, rec in recs:
+                n = by_stage.get(sid, 0)
+                if n < limit:
+                    trimmed.append((sid, rec))
+                    by_stage[sid] = n + 1
+            recs = trimmed
+        track_records.append((track, recs))
 
-    audio_library = [rec for _, rec in records]
+    audio_library = [rec for _, recs in track_records for _, rec in recs]
     print(f"Rendering audio for {len(audio_library)} dictation melodies …", flush=True)
     build_library_audio(assets_dir, audio_library)
 
     model = make_dictation_model()
-    length_by_stage = {sid: length for sid, _title, length in _stage_order()}
-    order = {sid: i for i, (sid, _t, _l) in enumerate(_stage_order())}
-    title_by_stage = {sid: title for sid, title, _l in _stage_order()}
-
-    decks: dict[str, genanki.Deck] = {}
-    for sid, rec in records:
-        if sid not in decks:
-            idx = order.get(sid, 99)
-            name = f"{base_deck_name}::{idx:02d} {sid} · {title_by_stage.get(sid, sid)}"
-            decks[sid] = genanki.Deck(deck_id=DICT_DECK_BASE + 1 + idx, name=name)
-        fields = melody_to_card_fields(rec)
-        fields["ListenTargets"] = json.dumps(
-            _listen_targets(length_by_stage.get(sid, 4)), separators=(",", ":")
-        )
-        tags = rec.get("tags", [])
-        assert isinstance(tags, list)
-        note = genanki.Note(
-            model=model,
-            fields=[fields[f] for f in DICTATION_FIELD_NAMES],
-            tags=[str(t) for t in tags if not str(t).startswith("track::")]
-            + ["track::dictation"],
-        )
-        decks[sid].add_note(note)
-
     umbrella = genanki.Deck(
         deck_id=DICT_DECK_BASE, name=base_deck_name, description=_DICT_ROOT_DESC
     )
-    ordered = [umbrella] + [decks[sid] for sid, _t, _l in _stage_order() if sid in decks]
-    pkg = genanki.Package(ordered)
+    ordered_decks: list[genanki.Deck] = [umbrella]
 
+    for off, (track, recs) in enumerate(track_records):
+        order = {sid: i for i, (sid, _t, _l) in enumerate(_track_stage_order(track))}
+        length_by = {sid: length for sid, _t, length in _track_stage_order(track)}
+        title_by = {sid: title for sid, title, _l in _track_stage_order(track)}
+        # Per-track umbrella carries its how-to text.
+        ordered_decks.append(
+            genanki.Deck(
+                deck_id=DICT_DECK_BASE + 1 + off,
+                name=f"{base_deck_name}::{track.segment}",
+                description=_TRACK_DESCS.get(track.segment, ""),
+            )
+        )
+        decks: dict[str, genanki.Deck] = {}
+        for sid, rec in recs:
+            if sid not in decks:
+                idx = order.get(sid, 99)
+                name = f"{base_deck_name}::{track.segment}::{idx:02d} {sid} · {title_by.get(sid, sid)}"
+                decks[sid] = genanki.Deck(deck_id=track.deck_id_base + idx, name=name)
+            fields = melody_to_card_fields(rec)
+            fields["ListenTargets"] = json.dumps(
+                _listen_targets(length_by.get(sid, 4)), separators=(",", ":")
+            )
+            tags = rec.get("tags", [])
+            assert isinstance(tags, list)
+            note = genanki.Note(
+                model=model,
+                fields=[fields[f] for f in DICTATION_FIELD_NAMES],
+                tags=[str(t) for t in tags if not str(t).startswith("track::")]
+                + [f"track::{track.tag}"],
+            )
+            decks[sid].add_note(note)
+        ordered_decks.extend(
+            decks[sid] for sid, _t, _l in _track_stage_order(track) if sid in decks
+        )
+
+    pkg = genanki.Package(ordered_decks)
     media_files: list[str] = []
     for bn in library_audio_basenames(audio_library):
         clip = assets_dir / bn
@@ -155,7 +223,7 @@ def build(out_path: Path, base_deck_name: str, assets_dir: Path, limit: int | No
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     write_package(pkg, out_path)
-    return len(records)
+    return len(audio_library)
 
 
 def main(argv: list[str]) -> int:

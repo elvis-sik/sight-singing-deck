@@ -49,7 +49,7 @@ def _durations_for(stage: Stage, n: int) -> list[str]:
     4/4 bar instead of leaving beats 3-4 empty. Every other stage keeps one
     quarter per index.
     """
-    if stage.phase == "intervals":
+    if stage.phase in ("intervals", "dictation-interval"):
         return ["h"] * n
     return [_DEFAULT_DURATION] * n
 
