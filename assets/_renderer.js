@@ -130,6 +130,7 @@
       key: String(data.key || "C"),
       mode: String(data.mode || "major"),
       timeSig: String(data.timeSig || "4/4"),
+      gradeMode: data.gradeMode ? String(data.gradeMode) : "",
       keySig: data.keySig ? String(data.keySig) : "",
       keyAcc: data.keyAccidentals && typeof data.keyAccidentals === "object"
         ? data.keyAccidentals
@@ -197,12 +198,18 @@
     if (!container || !data) return;
     container.innerHTML = "";
 
-    var badge = container.getAttribute("data-ss-badge");
+    // Rhythm cards override the template's badge; otherwise use the card's own.
+    var badge =
+      data.gradeMode === "rhythm" || data.gradeMode === "sounded"
+        ? "Rhythm"
+        : container.getAttribute("data-ss-badge");
     var chips = [];
     if (badge) {
       chips.push({ text: badge, badge: true });
     }
-    var mode = data.mode === "minor" ? "minor" : "major";
+    // Modes are "major" / "natural_minor" / "harmonic_minor" — match any minor
+    // (the old `=== "minor"` never matched, so minor cards mislabelled as major).
+    var mode = /minor/.test(String(data.mode)) ? "minor" : "major";
     chips.push({ text: data.key + " " + mode });
     chips.push({ text: data.timeSig });
     chips.push({

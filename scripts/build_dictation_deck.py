@@ -41,7 +41,11 @@ from sight_singing.anki_model import (
     make_dictation_model,
 )
 from sight_singing.audio_assets import build_library_audio, library_audio_basenames
-from sight_singing.build.library import build_library, realize_stage_melody
+from sight_singing.build.library import (
+    build_library,
+    build_rhythm_library,
+    realize_stage_melody,
+)
 from sight_singing.card_data import melody_to_card_fields
 from sight_singing.curriculum.stages import (
     DICTATION_INTERVAL_STAGES,
@@ -69,6 +73,7 @@ _TRACK_DESCS = {
     "3 · Intervals": "Hear one interval, notate it — dip in to reinforce a leap.",
     "4 · Bass Clef::C major": "The dictation ladder read/notated on the bass staff.",
     "4 · Bass Clef::A minor": "Bass-clef dictation in A minor. After treble is fluent.",
+    "5 · Rhythm": "Hear a one-bar rhythm on one pitch; notate the rhythm (timing only).",
 }
 
 
@@ -99,6 +104,8 @@ class DictTrack:
     stages: list[Stage]
     deck_id_base: int
     per_stage: int | None = None  # cap melodies/stage (bounded transfer tracks)
+    kind: str = "melodic"          # "melodic" | "rhythm"
+    rhythm_ids: tuple[str, ...] = ()  # rhythm-stage ids when kind == "rhythm"
 
 
 def _pick(stages: list[Stage], ids: tuple[str, ...]) -> list[Stage]:
@@ -135,6 +142,14 @@ TRACKS: list[DictTrack] = [
         "4 · Bass Clef::A minor", "dictation_bass_a", "A", "natural_minor", "bass",
         "", "", (), _BASS_MINOR, DICT_DECK_BASE + 130, per_stage=6,
     ),
+    # Rhythm dictation: hear a one-bar rhythm on a single pitch, notate the rhythm
+    # (graded by sounded rhythm, pitch-agnostic). Basic editor-safe values only —
+    # R1-R5 (no dotted/tie/triplet, which need editor input the ladder defers).
+    DictTrack(
+        "5 · Rhythm", "dictation_rhythm", "C", "major", "treble",
+        "", "", (), [], DICT_DECK_BASE + 160,
+        kind="rhythm", rhythm_ids=("R1", "R2", "R3", "R4", "R5"),
+    ),
 ]
 
 
@@ -147,6 +162,10 @@ def _listen_targets(length: int) -> dict[str, int]:
 
 def _track_stage_order(track: DictTrack) -> list[tuple[str, str, int]]:
     """(stage_id, title, length) in ladder order, priming rung first if present."""
+    if track.kind == "rhythm":
+        from sight_singing.generate.rhythm import RHYTHM_STAGES_BY_ID
+        # length=3 is a listen-count budget proxy, not a note count.
+        return [(rid, RHYTHM_STAGES_BY_ID[rid].title, 3) for rid in track.rhythm_ids]
     out: list[tuple[str, str, int]] = []
     if track.priming_id:
         out.append((track.priming_id, track.priming_title, 1))
@@ -156,6 +175,13 @@ def _track_stage_order(track: DictTrack) -> list[tuple[str, str, int]]:
 
 def _track_records(track: DictTrack) -> list[tuple[str, dict[str, object]]]:
     """(stage_id, realized record) for a whole track."""
+    if track.kind == "rhythm":
+        return [
+            (str(rec["stage_id"]), rec)
+            for rec in build_rhythm_library(
+                track.clef, stage_ids=track.rhythm_ids, grade_mode="rhythm"
+            )
+        ]
     records: list[tuple[str, dict[str, object]]] = []
     if track.priming_id:
         carrier = _priming_carrier(track.priming_id, track.priming_title)

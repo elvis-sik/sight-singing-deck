@@ -18,6 +18,9 @@
   var curMode = "major";
   var curTimeSig = "4/4";
   var curKeySig = "";
+  // "rhythm"/"sounded" ⇒ grade by sounded rhythm (pitch-agnostic, rest-spelling
+  // equivalent); "" ⇒ exact pitch+rhythm match (the melodic default).
+  var curGradeMode = "";
   var LETTERS = "CDEFGAB";
 
   // Diatonic ordinal: octave*7 + letter index, ignoring any accidental. Adjacent
@@ -325,7 +328,63 @@
     curMode = String((data && data.mode) || "major");
     curTimeSig = String((data && data.timeSig) || "4/4");
     curKeySig = String((data && data.keySig) || "");
+    curGradeMode = String((data && data.gradeMode) || "");
     PITCHES = buildPitches(targetEventsFromData(data), clef);
+  }
+
+  /* ---- sounded-rhythm grading (rhythm cards) --------------------------------
+   * What you HEAR: a per-eighth-unit grid — 0 silence, 1 attack, 2 held. A note
+   * is one attack then (units-1) helds; a rest/gap is silence. So a half-rest and
+   * two quarter-rests reduce identically, while q+q (two attacks) stays distinct
+   * from a held half. Pitch is ignored (rhythm cards are notated on any one line).
+   * `ev.tie === true` suppresses a note's onset so a tie merges into the previous.
+   */
+  function soundedRhythm(events, totalUnits) {
+    var evs = (events || []).slice().sort(function (a, b) {
+      return a.startUnit - b.startUnit;
+    });
+    var end = 0;
+    for (var i = 0; i < evs.length; i++) {
+      var u = evs[i].startUnit + durationUnits(evs[i].duration);
+      if (u > end) end = u;
+    }
+    var length = typeof totalUnits === "number" && totalUnits > end ? totalUnits : end;
+    var grid = [];
+    for (var g = 0; g < length; g++) grid.push(0);
+    for (var j = 0; j < evs.length; j++) {
+      var e = evs[j];
+      var units = durationUnits(e.duration);
+      if (!units || e.kind === "rest") continue;
+      var tied = e.tie === true;
+      for (var k = 0; k < units; k++) {
+        var pos = e.startUnit + k;
+        if (pos >= 0 && pos < length) grid[pos] = k === 0 && !tied ? 1 : 2;
+      }
+    }
+    return grid;
+  }
+
+  function rhythmsMatch(a, b) {
+    if (!a || !b || a.length !== b.length) return false;
+    for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+    return true;
+  }
+
+  /* Per-event correctness for the red/green tinting (best-effort; the verdict is
+     the whole-grid rhythmsMatch). */
+  function eventFitsSounded(ev, grid) {
+    var units = durationUnits(ev.duration);
+    if (!units) return false;
+    for (var k = 0; k < units; k++) {
+      var pos = ev.startUnit + k;
+      var cell = pos >= 0 && pos < grid.length ? grid[pos] : -1;
+      if (ev.kind === "rest") {
+        if (cell !== 0) return false;
+      } else if (cell !== (k === 0 ? 1 : 2)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   function buildAnswerData() {
@@ -1427,6 +1486,7 @@
     var good = themeVar("--ss-good", "#16803c");
     var bad = themeVar("--ss-bad", "#b91c1c");
 
+    var soundedMode = curGradeMode === "rhythm" || curGradeMode === "sounded";
     var targetByStart = {};
     for (var t = 0; t < targetEvents.length; t++) {
       targetByStart[targetEvents[t].startUnit] = targetEvents[t];
@@ -1434,11 +1494,11 @@
 
     var styles = [];
     var correct = 0;
+    var tgtGrid = soundedMode ? soundedRhythm(targetEvents, capacity) : null;
     for (var i = 0; i < state.events.length; i++) {
-      var match = eventsMatch(
-        state.events[i],
-        targetByStart[state.events[i].startUnit]
-      );
+      var match = soundedMode
+        ? eventFitsSounded(state.events[i], tgtGrid)
+        : eventsMatch(state.events[i], targetByStart[state.events[i].startUnit]);
       if (match) correct += 1;
       styles.push(
         match
@@ -1457,8 +1517,11 @@
     }
 
     var total = targetEvents.length;
-    var perfect =
-      correct === total && state.events.length === total && total > 0;
+    // Sounded-rhythm equivalence is a whole-sequence property (spellings coalesce,
+    // so event counts can differ), hence a binary verdict; melodic stays per-event.
+    var perfect = soundedMode
+      ? rhythmsMatch(soundedRhythm(state.events, capacity), tgtGrid)
+      : correct === total && state.events.length === total && total > 0;
 
     if (!state.events.length) {
       resultEl.className = "ss-verdict ss-verdict-none";
@@ -1474,17 +1537,21 @@
       resultEl.className = "ss-verdict ss-verdict-good";
       resultEl.innerHTML =
         verdictIcon("good") +
-        "<span>Perfect — every pitch and rhythm matches.</span>";
+        "<span>" +
+        (soundedMode
+          ? "Perfect — the rhythm matches."
+          : "Perfect — every pitch and rhythm matches.") +
+        "</span>";
       if (legendEl) legendEl.style.display = "none";
     } else {
       resultEl.className = "ss-verdict ss-verdict-partial";
       resultEl.innerHTML =
         verdictIcon("partial") +
         "<span>" +
-        correct +
-        " of " +
-        total +
-        " events match — differences are marked red.</span>";
+        (soundedMode
+          ? "The rhythm you wrote sounds different — compare with the target below."
+          : correct + " of " + total + " events match — differences are marked red.") +
+        "</span>";
       if (legendEl) legendEl.style.display = "";
     }
   }
@@ -1508,6 +1575,16 @@
       editor.innerHTML =
         '<div class="ss-editor-message">This melody is outside the current transcription exercise scope.</div>';
       return;
+    }
+
+    // Rhythm cards: retitle the prompt (pitch is irrelevant — notate the rhythm on
+    // any line). The "Rhythm" badge chip is handled by the renderer's renderMeta
+    // from data.gradeMode.
+    if (curGradeMode === "rhythm" || curGradeMode === "sounded") {
+      var prompt = document.querySelector(".ss-prompt-transcribe");
+      if (prompt) {
+        prompt.textContent = "Write the rhythm you hear (one pitch — it's all timing).";
+      }
     }
 
     buildStage(false);
