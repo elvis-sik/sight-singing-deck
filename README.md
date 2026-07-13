@@ -169,3 +169,7 @@ Anki to delete the orphaned older clips.
 
 - `node_modules/`, `test-results/`, `out/`, rendered audio, and local render caches are intentionally ignored.
 - The project uses `uv`'s `exclude-newer = "7 days"` policy and an npm `.npmrc` minimum release-age policy for dependency safety.
+
+## License
+
+[MIT](LICENSE)

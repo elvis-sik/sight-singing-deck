@@ -3,6 +3,8 @@ SHELL := /bin/bash
 
 PYTHON ?= python3
 UV ?= uv
+PYTHONPATH := src
+export PYTHONPATH
 WORKBENCH ?= anki-workbench
 DOCKER_IMAGE ?= sight-singing-deck-anki-workbench
 WORKBENCH_DOCKERFILE ?= .tmp/anki-workbench/Dockerfile
