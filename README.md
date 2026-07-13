@@ -1,6 +1,16 @@
-# Sight-Singing Deck
+# Sight Singing
 
-Code-generated Anki deck experiments for beginner sight singing.
+[![License: MIT](https://img.shields.io/badge/license-MIT-16A34A)](LICENSE)
+[![Anki Workbench](https://github.com/elvis-sik/sight-singing-deck/actions/workflows/anki-workbench.yml/badge.svg)](https://github.com/elvis-sik/sight-singing-deck/actions/workflows/anki-workbench.yml)
+![Anki platforms](https://img.shields.io/badge/Anki-Desktop%20%7C%20Mobile%20%7C%20Droid-0EA5E9)
+
+A code-generated, function-first course for learning to read music by ear: sing
+melodies, take dictation on a staff, identify wrong notes, and build rhythm fluency.
+Everything needed for notation and audio is bundled into the deck, so it works
+offline on Anki Desktop, AnkiMobile, and AnkiDroid.
+
+**Release status:** prepared for AnkiWeb. The public generator, curriculum, and
+verification harness live here; generated `.apkg` artifacts stay out of Git.
 
 The project started as a 10-card MVP that validates the full pipeline:
 
