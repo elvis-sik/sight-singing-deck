@@ -64,6 +64,11 @@ Every note is **tagged by phase, stage, track, and key**, so you can carve out
 your own mixed-review checkpoints with saved searches and filtered decks — see
 the GitHub README for ready-made recipes.
 
+## Companion deck
+
+For the complementary skill of hearing a melody and writing it on a staff, use
+[Music Dictation - Write What You Hear](https://ankiweb.net/shared/info/166250534?cb=1784080288775).
+
 ## Source & issues
 
 GitHub: [https://github.com/elvis-sik/sight-singing-deck](https://github.com/elvis-sik/sight-singing-deck)

@@ -26,5 +26,5 @@ mode.
 
 GitHub: [https://github.com/elvis-sik/sight-singing-deck](https://github.com/elvis-sik/sight-singing-deck)
 
-This deck is designed as the dictation companion to the Sight Singing course in
-the same repository.
+This deck is the dictation companion to
+[Sight Singing — a function-first ear & reading course](https://ankiweb.net/shared/info/948253022?cb=1784080108165).
