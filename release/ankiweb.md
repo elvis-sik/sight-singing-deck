@@ -4,8 +4,6 @@ tags: sight-singing solfege ear-training music music-theory sight-reading notati
 support_url: https://github.com/elvis-sik/sight-singing-deck
 ---
 
-# Sight Singing — a function-first ear & reading course
-
 A from-scratch course for learning to **read music by ear** — to look at a
 melody and hear it, and to hear a melody and write it down. It's built around
 **movable-do solfège** and ordered by **tonal function**, not by interval size:
@@ -19,6 +17,12 @@ AnkiMobile (iOS), and AnkiDroid**. Light and dark mode included.
 
 You grade yourself — sing or clap, then flip and check — and you still press
 Anki's own answer buttons, so **scheduling stays 100% Anki**.
+
+## In Anki
+
+![A C-major sight-singing prompt in Anki](https://raw.githubusercontent.com/elvis-sik/anki-shared-deck-assets/main/screenshots/sight-singing/sing-front.png)
+
+![The revealed answer to the sight-singing prompt in Anki](https://raw.githubusercontent.com/elvis-sik/anki-shared-deck-assets/main/screenshots/sight-singing/sing-back.png)
 
 ## Card types
 

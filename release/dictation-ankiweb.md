@@ -4,8 +4,6 @@ tags: music dictation ear-training music-theory rhythm notation transcription
 support_url: https://github.com/elvis-sik/sight-singing-deck
 ---
 
-# Music Dictation - Write What You Hear
-
 An interactive course for learning to hear a melody and write it on a staff.
 Each card plays a short phrase, then gives you a built-in notation editor: place
 notes, choose durations, enter rests, ties, dotted values, triplets, and 6/8
@@ -19,6 +17,12 @@ buttons, so scheduling remains entirely in Anki.
 Everything needed to play audio and render notation is bundled in the deck. It
 works offline on Anki Desktop, AnkiMobile (iOS), and AnkiDroid, in light or dark
 mode.
+
+## In Anki
+
+![A Dictation card's in-Anki notation editor](https://raw.githubusercontent.com/elvis-sik/anki-shared-deck-assets/main/screenshots/dictation/dictation-front.png)
+
+![The target melody revealed after a Dictation card](https://raw.githubusercontent.com/elvis-sik/anki-shared-deck-assets/main/screenshots/dictation/dictation-back.png)
 
 GitHub: [https://github.com/elvis-sik/sight-singing-deck](https://github.com/elvis-sik/sight-singing-deck)
 
