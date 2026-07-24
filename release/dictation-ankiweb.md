@@ -1,7 +1,7 @@
 ---
 title: "Music Dictation - Write What You Hear"
 tags: music dictation ear-training music-theory rhythm notation transcription
-support_url: https://github.com/elvis-sik/sight-singing-deck
+support_url: https://github.com/ritornello-labs/sight-singing-deck
 ---
 
 An interactive course for learning to hear a melody and write it on a staff.
@@ -24,7 +24,7 @@ mode.
 
 ![The target melody revealed after a Dictation card](https://raw.githubusercontent.com/elvis-sik/anki-shared-deck-assets/main/screenshots/dictation/dictation-back.png)
 
-GitHub: [https://github.com/elvis-sik/sight-singing-deck](https://github.com/elvis-sik/sight-singing-deck)
+GitHub: [https://github.com/ritornello-labs/sight-singing-deck](https://github.com/ritornello-labs/sight-singing-deck)
 
 This deck is the dictation companion to
 [Sight Singing — a function-first ear & reading course](https://ankiweb.net/shared/info/948253022?cb=1784080108165).

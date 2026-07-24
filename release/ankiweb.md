@@ -1,7 +1,7 @@
 ---
 title: "Sight Singing — a function-first ear & reading course"
 tags: sight-singing solfege ear-training music music-theory sight-reading notation rhythm dictation singing
-support_url: https://github.com/elvis-sik/sight-singing-deck
+support_url: https://github.com/ritornello-labs/sight-singing-deck
 ---
 
 A from-scratch course for learning to **read music by ear** — to look at a
@@ -71,7 +71,7 @@ For the complementary skill of hearing a melody and writing it on a staff, use
 
 ## Source & issues
 
-GitHub: [https://github.com/elvis-sik/sight-singing-deck](https://github.com/elvis-sik/sight-singing-deck)
+GitHub: [https://github.com/ritornello-labs/sight-singing-deck](https://github.com/ritornello-labs/sight-singing-deck)
 
 The whole deck — melodies, audio, and notation — is produced by the open-source
 generator in the repository above.

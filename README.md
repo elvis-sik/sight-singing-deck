@@ -1,7 +1,7 @@
 # Sight Singing
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-16A34A)](LICENSE)
-[![Anki Workbench](https://github.com/elvis-sik/sight-singing-deck/actions/workflows/anki-workbench.yml/badge.svg)](https://github.com/elvis-sik/sight-singing-deck/actions/workflows/anki-workbench.yml)
+[![Anki Workbench](https://github.com/ritornello-labs/sight-singing-deck/actions/workflows/anki-workbench.yml/badge.svg)](https://github.com/ritornello-labs/sight-singing-deck/actions/workflows/anki-workbench.yml)
 [![Sight Singing on AnkiWeb](https://img.shields.io/badge/AnkiWeb-Sight%20Singing-2f80ed)](https://ankiweb.net/shared/info/948253022?cb=1784080108165)
 [![Dictation on AnkiWeb](https://img.shields.io/badge/AnkiWeb-Music%20Dictation-2f80ed)](https://ankiweb.net/shared/info/166250534?cb=1784080288775)
 ![Anki platforms](https://img.shields.io/badge/Anki-Desktop%20%7C%20Mobile%20%7C%20Droid-0EA5E9)
