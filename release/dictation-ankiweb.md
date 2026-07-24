@@ -20,9 +20,9 @@ mode.
 
 ## In Anki
 
-![A Dictation card's in-Anki notation editor](https://raw.githubusercontent.com/elvis-sik/anki-shared-deck-assets/main/screenshots/dictation/dictation-front.png)
+![A Dictation card's in-Anki notation editor](https://raw.githubusercontent.com/ritornello-labs/anki-shared-deck-assets/main/screenshots/dictation/dictation-front.png)
 
-![The target melody revealed after a Dictation card](https://raw.githubusercontent.com/elvis-sik/anki-shared-deck-assets/main/screenshots/dictation/dictation-back.png)
+![The target melody revealed after a Dictation card](https://raw.githubusercontent.com/ritornello-labs/anki-shared-deck-assets/main/screenshots/dictation/dictation-back.png)
 
 GitHub: [https://github.com/ritornello-labs/sight-singing-deck](https://github.com/ritornello-labs/sight-singing-deck)
 

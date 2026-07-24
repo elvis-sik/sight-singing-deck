@@ -20,9 +20,9 @@ Anki's own answer buttons, so **scheduling stays 100% Anki**.
 
 ## In Anki
 
-![A C-major sight-singing prompt in Anki](https://raw.githubusercontent.com/elvis-sik/anki-shared-deck-assets/main/screenshots/sight-singing/sing-front.png)
+![A C-major sight-singing prompt in Anki](https://raw.githubusercontent.com/ritornello-labs/anki-shared-deck-assets/main/screenshots/sight-singing/sing-front.png)
 
-![The revealed answer to the sight-singing prompt in Anki](https://raw.githubusercontent.com/elvis-sik/anki-shared-deck-assets/main/screenshots/sight-singing/sing-back.png)
+![The revealed answer to the sight-singing prompt in Anki](https://raw.githubusercontent.com/ritornello-labs/anki-shared-deck-assets/main/screenshots/sight-singing/sing-back.png)
 
 ## Card types
 
